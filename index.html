@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADSE — Avaliação Formativa 5º Ano</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: dark; --bg:#0c0c0d; --card:#18181b; --text:#fff; --muted:#9a9aa3; --border:rgba(255,255,255,.08); --green:#00e676; --blue:#3d7bff; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #1a2233, var(--bg));
+      color: var(--text); padding: 24px;
+    }
+    main {
+      width: min(620px, 100%); background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 28px 24px; box-shadow: 0 16px 40px rgba(0,0,0,.35);
+    }
+    .logos {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px;
+    }
+    .logos img { height: 52px; width: auto; max-width: 140px; object-fit: contain; }
+    h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: .02em; line-height: 1.35; }
+    p { margin: 0 0 20px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
+    }
+    .stat {
+      background: #121214; border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+    }
+    .stat b { display: block; font-size: 20px; margin-bottom: 4px; }
+    .stat small { color: var(--muted); font-size: 12px; }
+    nav { display: grid; gap: 10px; }
+    a {
+      display: flex; align-items: center; justify-content: space-between;
+      text-decoration: none; color: var(--text); font-weight: 600; font-size: 15px;
+      padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border);
+      background: #121214; transition: border-color .15s, transform .15s;
+    }
+    a:hover { border-color: var(--green); transform: translateY(-1px); }
+    a span { color: var(--green); font-size: 12px; font-weight: 700; }
+    .note { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 520px) { .stats { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="logos">
+      <img src="assets/logo-prefeitura.png" alt="Prefeitura de São José da Tapera" />
+      <img src="assets/logo-semed.png" alt="SEMED - Secretaria Municipal de Educação" />
+    </div>
+    <h1>Avaliação Diagnóstica do Sistema Estadual — ADSE</h1>
+    <p>Painel de acompanhamento da Avaliação Formativa/Percurso — 1º semestre 2026 (Língua Portuguesa e Matemática).</p>
+    <div class="stats" id="homeStats"></div>
+    <nav aria-label="Painéis">
+      <a href="painel.html">Painel de acompanhamento <span>Abrir →</span></a>
+    </nav>
+    <p class="note">Dados importados das abas Português e Matemática da planilha ADSE.</p>
+  </main>
+  <script src="dados.js"></script>
+  <script>
+    const m = DADOS.meta;
+    const pct = (n) => `${Number(n || 0).toFixed(2).replace(".", ",")}%`;
+    document.getElementById("homeStats").innerHTML = `
+      <div class="stat"><b>${m.totalAvaliados}</b><small>Alunos avaliados</small></div>
+      <div class="stat"><b>${pct(m.participacaoGeral)}</b><small>Participação</small></div>
+      <div class="stat"><b>${pct(m.mediaGeral)}</b><small>Média geral</small></div>`;
+  </script>
+</body>
+</html>
