@@ -11,18 +11,58 @@ const DISCIPLINAS = {
   mat: "Matemática",
 };
 
+const PERIODOS = {
+  diagnostica: "Diagnóstica",
+  percurso: "Percurso",
+  saida: "Saída",
+};
+
+/** Fallback quando meta não declara o período padrão. */
+const PERIODO_DADOS = "percurso";
+
 const state = {
   view: "dashboard",
   visao: "turmas",
   disciplina: "geral",
   escola: "",
   turma: "",
+  periodo: "percurso",
   faixa: "",
   search: "",
   page: 1,
   pageSize: 10,
   sort: { key: "ranking", dir: 1 },
 };
+
+function periodoPadrao() {
+  return DADOS.meta?.periodoPadrao || DADOS.meta?.periodo || PERIODO_DADOS;
+}
+
+function periodosDisponiveis() {
+  return DADOS.meta?.periodosDisponiveis || Object.keys(DADOS.byPeriodo || {}) || [periodoPadrao()];
+}
+
+function periodoBundle(periodo = state.periodo) {
+  if (DADOS.byPeriodo?.[periodo]) return DADOS.byPeriodo[periodo];
+  if (periodo === periodoPadrao()) {
+    return {
+      meta: DADOS.meta,
+      escolasQuestoesLp: DADOS.escolasQuestoesLp,
+      escolasQuestoesMat: DADOS.escolasQuestoesMat,
+    };
+  }
+  return null;
+}
+
+function metaAtivo() {
+  return periodoBundle()?.meta || DADOS.meta;
+}
+
+function expandPeriodo(row, periodo = state.periodo) {
+  const block = row?.periodos?.[periodo];
+  if (!block) return null;
+  return { ...row, ...block };
+}
 
 const charts = {};
 const THEME_KEY = "adse-theme";
@@ -67,13 +107,36 @@ function faixaFromMedia(media) {
 function metricPrevistos(row) {
   if (state.disciplina === "lp") return row.previstosLp ?? row.previstos;
   if (state.disciplina === "mat") return row.previstosMat ?? row.previstos;
-  return row.previstos;
+  const lp = row.previstosLp ?? 0;
+  const mat = row.previstosMat ?? 0;
+  if (lp || mat) return roundHalfUp((lp + mat) / 2, 0);
+  return row.previstos || 0;
 }
 
 function metricAvaliados(row) {
   if (state.disciplina === "lp") return row.avaliadosLp ?? row.avaliados;
   if (state.disciplina === "mat") return row.avaliadosMat ?? row.avaliados;
-  return row.avaliados;
+  const lp = row.avaliadosLp ?? 0;
+  const mat = row.avaliadosMat ?? 0;
+  if (lp || mat) return roundHalfUp((lp + mat) / 2, 0);
+  return row.avaliados || 0;
+}
+
+function subjectPrevistos(row, subject) {
+  if (state.visao === "escolas") {
+    const turmas = turmasForEscolaNome(row.escola);
+    if (!turmas.length) {
+      if (subject === "lp") return row.previstosLp ?? row.previstos ?? 0;
+      if (subject === "mat") return row.previstosMat ?? row.previstos ?? 0;
+      return row.previstos || 0;
+    }
+    if (subject === "lp") return turmas.reduce((acc, t) => acc + (t.previstosLp ?? t.previstos ?? 0), 0);
+    if (subject === "mat") return turmas.reduce((acc, t) => acc + (t.previstosMat ?? t.previstos ?? 0), 0);
+    return turmas.reduce((acc, t) => acc + (t.previstos ?? 0), 0);
+  }
+  if (subject === "lp") return row.previstosLp ?? row.previstos ?? 0;
+  if (subject === "mat") return row.previstosMat ?? row.previstos ?? 0;
+  return row.previstos || 0;
 }
 
 function matchesSearchTurma(row, q) {
@@ -84,25 +147,55 @@ function matchesSearchEscola(row, q) {
   return !q || row.escola.toLowerCase().includes(q);
 }
 
+function periodoTemDados(periodo = state.periodo) {
+  return !!periodoBundle(periodo);
+}
+
 function turmasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
-  return DADOS.turmas.filter((row) => {
-    if (!exclude.escola && state.escola && row.escola !== state.escola) return false;
-    if (!exclude.turma && state.turma && row.turma !== state.turma) return false;
-    if (!exclude.faixa && state.faixa && faixaFromMedia(mediaRow(row)).key !== state.faixa) return false;
-    if (!exclude.search && !matchesSearchTurma(row, q)) return false;
-    return true;
-  });
+  if (!exclude.periodo && !periodoTemDados()) return [];
+  return DADOS.turmas
+    .map((row) => {
+      const active = expandPeriodo(row, state.periodo);
+      if (active) return active;
+      if (!exclude.periodo) return null;
+      for (const p of periodosDisponiveis()) {
+        const alt = expandPeriodo(row, p);
+        if (alt) return alt;
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .filter((row) => {
+      if (!exclude.escola && state.escola && row.escola !== state.escola) return false;
+      if (!exclude.turma && state.turma && row.turma !== state.turma) return false;
+      if (!exclude.faixa && state.faixa && faixaFromMedia(mediaRow(row)).key !== state.faixa) return false;
+      if (!exclude.search && !matchesSearchTurma(row, q)) return false;
+      return true;
+    });
 }
 
 function escolasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
-  return DADOS.escolas.filter((row) => {
-    if (!exclude.escola && state.escola && row.escola !== state.escola) return false;
-    if (!exclude.faixa && state.faixa && faixaFromMedia(mediaRow(row)).key !== state.faixa) return false;
-    if (!exclude.search && !matchesSearchEscola(row, q)) return false;
-    return true;
-  });
+  if (!exclude.periodo && !periodoTemDados()) return [];
+  return DADOS.escolas
+    .map((row) => {
+      const active = expandPeriodo(row, state.periodo);
+      if (active) return active;
+      if (!exclude.periodo) return null;
+      for (const p of periodosDisponiveis()) {
+        const alt = expandPeriodo(row, p);
+        if (alt) return alt;
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .filter((row) => {
+      if (!exclude.escola && state.escola && row.escola !== state.escola) return false;
+      if (!exclude.faixa && state.faixa && faixaFromMedia(mediaRow(row)).key !== state.faixa) return false;
+      if (!exclude.search && !matchesSearchEscola(row, q)) return false;
+      return true;
+    });
 }
 
 function rowsTurmas() {
@@ -140,16 +233,49 @@ function subjectAvaliados(row, subject) {
   return row.avaliados;
 }
 
+function roundHalfUp(value, digits = 2) {
+  const sign = value < 0 ? -1 : 1;
+  const factor = 10 ** digits;
+  return (sign * Math.floor(Math.abs(Number(value) || 0) * factor + 0.5)) / factor;
+}
+
+/** Turmas das escolas exibidas — evita distorcer a média da rede na visão por escola. */
+function turmasOfEscolaRows(escolaRows) {
+  const bases = new Set(escolaRows.map((r) => escolaBaseNome(r.escola)));
+  return turmasBase({ escola: true, turma: true, faixa: true, search: true }).filter((t) =>
+    bases.has(escolaBaseNome(t.escola))
+  );
+}
+
 function aggregate(rows) {
   const previstos = rows.reduce((acc, r) => acc + rowMetrics(r).previstos, 0);
   const avaliados = rows.reduce((acc, r) => acc + rowMetrics(r).avaliados, 0);
-  const peso = avaliados || 1;
-  const pesoLp = rows.reduce((acc, r) => acc + subjectAvaliados(r, "lp"), 0) || 1;
-  const pesoMat = rows.reduce((acc, r) => acc + subjectAvaliados(r, "mat"), 0) || 1;
-  const mediaLp = rows.reduce((acc, r) => acc + r.mediaLp * subjectAvaliados(r, "lp"), 0) / pesoLp;
-  const mediaMat = rows.reduce((acc, r) => acc + r.mediaMat * subjectAvaliados(r, "mat"), 0) / pesoMat;
-  const mediaGeral =
-    rows.reduce((acc, r) => acc + r.mediaGeral * rowMetrics(r).avaliados, 0) / peso;
+
+  // Médias sempre pelas turmas (como no Excel da rede).
+  // Na visão por escola, mediaLp da escola é média simples das turmas;
+  // reponderar isso pelo tamanho da escola muda o % (ex.: 59,51% → 58,90%).
+  const mediaRows = state.visao === "escolas" ? turmasOfEscolaRows(rows) : rows;
+
+  const weightedAvg = (getMedia, getWeight) => {
+    let sum = 0;
+    let weightTotal = 0;
+    for (const row of mediaRows) {
+      const weight = getWeight(row) || 0;
+      if (!weight) continue;
+      sum += (getMedia(row) || 0) * weight;
+      weightTotal += weight;
+    }
+    return weightTotal ? roundHalfUp(sum / weightTotal) : 0;
+  };
+
+  const weightLp = (r) => r.avaliadosLp ?? r.avaliados ?? 0;
+  const weightMat = (r) => r.avaliadosMat ?? r.avaliados ?? 0;
+
+  const mediaLp = weightedAvg((r) => r.mediaLp, weightLp);
+  const mediaMat = weightedAvg((r) => r.mediaMat, weightMat);
+  // Visão geral: junta as médias ponderadas de LP e MAT
+  const mediaGeral = roundHalfUp((mediaLp + mediaMat) / 2);
+
   return {
     previstos,
     avaliados,
@@ -253,17 +379,34 @@ function fillSelects() {
   const disc = document.getElementById("filterDisciplina");
   const esc = document.getElementById("filterEscola");
   const tur = document.getElementById("filterTurma");
-  const m = DADOS.meta;
+  const m = metaAtivo();
+  const turmasCount = turmasBase({ escola: true, turma: true, faixa: true, search: true }).length;
+  const escolasCount = escolasBase({ escola: true, faixa: true, search: true }).length;
 
   vis.innerHTML = [
-    `<option value="turmas">${optionLabel("Por turma", `${DADOS.turmas.length} turmas`)}</option>`,
-    `<option value="escolas">${optionLabel("Por escola", `${DADOS.escolas.length} escolas`)}</option>`,
+    `<option value="turmas">${optionLabel("Por turma", `${turmasCount} turmas`)}</option>`,
+    `<option value="escolas">${optionLabel("Por escola", `${escolasCount} escolas`)}</option>`,
   ].join("");
+
+  const periodoSelect = document.getElementById("filterPeriodo");
+  if (periodoSelect) {
+    const order = ["diagnostica", "percurso", "saida"];
+    periodoSelect.innerHTML = order
+      .map((periodo) => {
+        const has = periodoTemDados(periodo);
+        const label = has ? PERIODOS[periodo] : `${PERIODOS[periodo]} (sem dados)`;
+        return `<option value="${periodo}" ${has ? "" : "disabled"}>${label}</option>`;
+      })
+      .join("");
+  }
 
   disc.innerHTML = [
     `<option value="lp">${optionLabel("Língua Portuguesa", `${fmt(m.previstosLp ?? m.totalPrevistos)} prev · ${fmt(m.avaliadosLp ?? m.totalAvaliados)} aval`)}</option>`,
     `<option value="mat">${optionLabel("Matemática", `${fmt(m.previstosMat ?? m.totalPrevistos)} prev · ${fmt(m.avaliadosMat ?? m.totalAvaliados)} aval`)}</option>`,
-    `<option value="geral">${optionLabel("Português + Matemática", `${fmt(m.totalPrevistos)} prev · ${fmt(m.totalAvaliados)} aval`)}</option>`,
+    `<option value="geral">${optionLabel(
+      "Português + Matemática",
+      `${fmt(m.totalPrevistos)} prev · ${fmt(m.totalAvaliados)} aval · LP ${fmt(m.previstosLp ?? 0)}/${fmt(m.avaliadosLp ?? 0)} · MAT ${fmt(m.previstosMat ?? 0)}/${fmt(m.avaliadosMat ?? 0)}`
+    )}</option>`,
   ].join("");
 
   if (state.visao === "escolas") {
@@ -323,11 +466,13 @@ function fillSelects() {
 }
 
 function syncSelects() {
-  ["filterVisao", "filterDisciplina", "filterEscola", "filterTurma"].forEach((id) => {
+  ["filterVisao", "filterDisciplina", "filterEscola", "filterTurma", "filterPeriodo"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     const key = id.replace("filter", "").toLowerCase();
-    el.value = state[key] || (id === "filterDisciplina" ? "geral" : id === "filterVisao" ? "turmas" : "");
+    el.value =
+      state[key] ||
+      (id === "filterDisciplina" ? "geral" : id === "filterVisao" ? "turmas" : id === "filterPeriodo" ? periodoPadrao() : "");
   });
 }
 
@@ -338,6 +483,9 @@ function renderChips() {
   if (state.disciplina !== "geral") items.push({ key: "disciplina", label: DISCIPLINAS[state.disciplina] });
   if (state.escola) items.push({ key: "escola", label: shortSchool(state.escola) });
   if (state.turma) items.push({ key: "turma", label: `Turma ${state.turma}` });
+  if (state.periodo && state.periodo !== periodoPadrao()) {
+    items.push({ key: "periodo", label: `Período: ${PERIODOS[state.periodo] || state.periodo}` });
+  }
   if (state.faixa) items.push({ key: "faixa", label: FAIXAS.find((f) => f.key === state.faixa)?.label || state.faixa });
   if (!items.length) {
     chips.hidden = true;
@@ -357,24 +505,35 @@ function renderKPIs(rows) {
   const agg = aggregate(rows);
   const mediaAtual =
     state.disciplina === "lp" ? agg.mediaLp : state.disciplina === "mat" ? agg.mediaMat : agg.mediaGeral;
+  const prevLp = rows.reduce((acc, r) => acc + subjectPrevistos(r, "lp"), 0);
+  const prevMat = rows.reduce((acc, r) => acc + subjectPrevistos(r, "mat"), 0);
   const avalLp = rows.reduce((acc, r) => acc + subjectAvaliados(r, "lp"), 0);
   const avalMat = rows.reduce((acc, r) => acc + subjectAvaliados(r, "mat"), 0);
   const avalAtual =
     state.disciplina === "lp" ? avalLp : state.disciplina === "mat" ? avalMat : agg.avaliados;
   const alunosPct = (media, avaliados) => Math.round(((media || 0) * (avaliados || 0)) / 100);
-  // Pares: Previstos | média · Participação | Turmas/Escolas
-  // Em "geral", 3ª linha: Português | Matemática
+
+  // Em Português + Matemática: junta LP e MAT (média dos totais) nos cards.
+  const previstosCard =
+    state.disciplina === "geral" ? roundHalfUp((prevLp + prevMat) / 2, 0) : agg.previstos;
+  const avaliadosCard =
+    state.disciplina === "geral" ? roundHalfUp((avalLp + avalMat) / 2, 0) : agg.avaliados;
+  const participacaoCard = previstosCard ? (avaliadosCard / previstosCard) * 100 : 0;
+
   const leftCards = [
     {
       title: "Previstos",
-      value: fmt(agg.previstos),
-      foot: `<span class="num">${fmt(agg.avaliados)}</span> avaliados`,
+      value: fmt(previstosCard),
+      foot:
+        state.disciplina === "geral"
+          ? `LP <span class="num">${fmt(prevLp)}</span> · MAT <span class="num">${fmt(prevMat)}</span><br><span class="num">${fmt(avaliadosCard)}</span> avaliados`
+          : `<span class="num">${fmt(avaliadosCard)}</span> avaliados`,
       icon: "tot",
     },
     {
       title: "Participação",
-      value: fmtPct(agg.participacao),
-      foot: `<span class="num">${fmt(agg.avaliados)}</span> de <span class="num">${fmt(agg.previstos)}</span>`,
+      value: fmtPct(participacaoCard),
+      foot: `<span class="num">${fmt(avaliadosCard)}</span> de <span class="num">${fmt(previstosCard)}</span>`,
       icon: "ini",
     },
   ];
@@ -385,7 +544,7 @@ function renderKPIs(rows) {
       value: fmtPct(mediaAtual),
       foot:
         state.disciplina === "geral"
-          ? "média ponderada"
+          ? "média ponderada LP + MAT"
           : `<span class="num">${fmt(alunosPct(mediaAtual, avalAtual))}</span> alunos`,
       icon: "flu",
     },
@@ -401,13 +560,13 @@ function renderKPIs(rows) {
     leftCards.push({
       title: "Português",
       value: fmtPct(agg.mediaLp),
-      foot: "média da rede",
+      foot: `<span class="num">${fmt(prevLp)}</span> prev · <span class="num">${fmt(avalLp)}</span> aval`,
       icon: "ava",
     });
     rightCards.push({
       title: "Matemática",
       value: fmtPct(agg.mediaMat),
-      foot: "média da rede",
+      foot: `<span class="num">${fmt(prevMat)}</span> prev · <span class="num">${fmt(avalMat)}</span> aval`,
       icon: "pre",
     });
   }
@@ -479,11 +638,28 @@ function destroyChart(key) {
 }
 
 function labelRows(rows, withRank = false) {
+  const ranks = withRank ? competitionRanks(rows.map((r) => mediaRow(r))) : null;
   return rows.map((r, index) => {
     const base = shortSchool(r.escola);
     const name = state.visao === "turmas" && r.turma !== "ÚNICA" ? `${base} · ${r.turma}` : base;
-    return withRank ? `${name} · ${index + 1}º` : name;
+    return withRank ? `${name} · ${ranks[index]}º` : name;
   });
+}
+
+/** Ranking com empate denso (valores já ordenados do maior para o menor): 10º, 11º, 11º, 12º. */
+function competitionRanks(values) {
+  const ranks = new Array(values.length);
+  let index = 0;
+  let position = 1;
+  while (index < values.length) {
+    const key = roundHalfUp(values[index] ?? 0);
+    let end = index + 1;
+    while (end < values.length && roundHalfUp(values[end] ?? 0) === key) end += 1;
+    for (let i = index; i < end; i += 1) ranks[i] = position;
+    position += 1;
+    index = end;
+  }
+  return ranks;
 }
 
 const rankingBarLabelsPlugin = {
@@ -499,6 +675,7 @@ const rankingBarLabelsPlugin = {
     meta.data.forEach((bar, index) => {
       const value = dataset.data[index];
       const alunos = dataset.alunos?.[index];
+      const rank = dataset.ranks?.[index] ?? index + 1;
       const start = Math.min(bar.x, bar.base);
       const end = Math.max(bar.x, bar.base);
 
@@ -510,7 +687,7 @@ const rankingBarLabelsPlugin = {
       ctx.fillStyle = ink;
       ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText(`${index + 1}º`, start + padding, bar.y);
+      ctx.fillText(`${rank}º`, start + padding, bar.y);
 
       if (alunos != null) {
         const alunosText = `${fmt(alunos)} alunos`;
@@ -586,29 +763,47 @@ const questoesBarLabelsPlugin = {
   },
 };
 
-function renderComparativo(rows) {
+function renderComparativo() {
   destroyChart("comparativo");
   const { muted, text } = chartDefaults();
-  const sorted = [...rows].sort((a, b) => b.mediaGeral - a.mediaGeral).slice(0, 12);
+  // Comparativo entre períodos: ignora o filtro de período para manter as 3 séries.
+  const rows = state.visao === "escolas" ? escolasBase({ periodo: true }) : turmasBase({ periodo: true });
+  const sortMedia = (r) =>
+    mediaPeriodoRow(r, state.periodo) ?? mediaPeriodoRow(r, PERIODO_DADOS) ?? mediaPeriodoRow(r, "percurso") ?? 0;
+  const sorted = [...rows].sort((a, b) => sortMedia(b) - sortMedia(a)).slice(0, 12);
+
+  const titleEl = document.getElementById("chartComparativoTitle");
+  const subEl = document.getElementById("chartComparativoSub");
+  if (titleEl) titleEl.textContent = "Diagnóstica × Percurso × Saída";
+  if (subEl) {
+    subEl.textContent = `${DISCIPLINAS[state.disciplina]} · destaque: ${PERIODOS[state.periodo] || state.periodo}`;
+  }
+
+  const periodoKeys = ["diagnostica", "percurso", "saida"];
+  const periodoColors = {
+    diagnostica: { on: "rgba(61, 123, 255, 0.9)", off: "rgba(61, 123, 255, 0.28)" },
+    percurso: { on: "rgba(0, 230, 118, 0.9)", off: "rgba(0, 230, 118, 0.28)" },
+    saida: { on: "rgba(255, 176, 32, 0.9)", off: "rgba(255, 176, 32, 0.28)" },
+  };
+
   const ctx = document.getElementById("chartComparativo");
   charts.comparativo = new Chart(ctx, {
     type: "bar",
     data: {
       labels: labelRows(sorted),
-      datasets: [
-        {
-          label: "Português",
-          data: sorted.map((r) => r.mediaLp),
-          backgroundColor: "rgba(61, 123, 255, 0.85)",
+      datasets: periodoKeys.map((periodo) => {
+        const active = state.periodo === periodo;
+        const colors = periodoColors[periodo];
+        return {
+          label: PERIODOS[periodo],
+          periodo,
+          data: sorted.map((r) => mediaPeriodoRow(r, periodo)),
+          backgroundColor: active ? colors.on : colors.off,
+          borderColor: active ? colors.on.replace("0.9", "1") : "transparent",
+          borderWidth: active ? 1 : 0,
           borderRadius: 8,
-        },
-        {
-          label: "Matemática",
-          data: sorted.map((r) => r.mediaMat),
-          backgroundColor: "rgba(0, 230, 118, 0.85)",
-          borderRadius: 8,
-        },
-      ],
+        };
+      }),
     },
     options: {
       responsive: true,
@@ -619,20 +814,109 @@ function renderComparativo(rows) {
       },
       plugins: {
         legend: { labels: { color: text } },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtPct(ctx.raw)}` } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              if (ctx.raw == null) return `${ctx.dataset.label}: sem dados`;
+              return `${ctx.dataset.label}: ${fmtPct(ctx.raw)}`;
+            },
+          },
+        },
       },
       onClick: (_, els) => {
         if (!els.length) return;
-        const row = sorted[els[0].index];
-        state.escola = state.escola === row.escola ? "" : row.escola;
-        if (state.visao === "turmas" && row.turma) state.turma = state.turma === row.turma ? "" : row.turma;
+        const el = els[0];
+        const row = sorted[el.index];
+        const periodo = charts.comparativo.data.datasets[el.datasetIndex]?.periodo;
+        if (periodo) state.periodo = periodo;
+        const sameEscola = state.escola === row.escola;
+        const sameTurma =
+          state.visao === "turmas" && row.turma && state.turma === row.turma;
+        if (sameEscola && (state.visao === "escolas" || sameTurma || !row.turma)) {
+          state.escola = "";
+          state.turma = "";
+        } else {
+          state.escola = row.escola;
+          state.turma = state.visao === "turmas" && row.turma ? row.turma : "";
+        }
         state.page = 1;
-        syncSelects();
+        fillSelects();
         render();
       },
     },
   });
 }
+
+function metricsPeriodo(row, periodo) {
+  const block = row.periodos?.[periodo];
+  if (block) return block;
+  if (row.mediaGeral != null || row.mediaLp != null || row.mediaMat != null) {
+    // Linha já expandida para o período ativo
+    if (periodo === state.periodo) {
+      return {
+        mediaLp: row.mediaLp,
+        mediaMat: row.mediaMat,
+        mediaGeral: row.mediaGeral,
+      };
+    }
+  }
+  return null;
+}
+
+function mediaPeriodoRow(row, periodo) {
+  const m = metricsPeriodo(row, periodo);
+  if (!m) return null;
+  if (state.disciplina === "lp") return m.mediaLp ?? null;
+  if (state.disciplina === "mat") return m.mediaMat ?? null;
+  return m.mediaGeral ?? null;
+}
+
+const donutSliceLabelsPlugin = {
+  id: "donutSliceLabels",
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta?.data?.length) return;
+    const { ctx } = chart;
+    const dataset = chart.data.datasets[0];
+    const total = dataset.data.reduce((acc, v) => acc + (Number(v) || 0), 0);
+    ctx.save();
+    meta.data.forEach((arc, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      if (value <= 0 || !total) return;
+
+      const props = arc.getProps(["startAngle", "endAngle", "innerRadius", "outerRadius", "x", "y"], true);
+      const angleSpan = props.endAngle - props.startAngle;
+      const mid = (props.startAngle + props.endAngle) / 2;
+      const thin = angleSpan < 0.35;
+      // fatias estreitas: número um pouco fora do anel para caber
+      const radius = thin
+        ? props.outerRadius + 14
+        : (props.innerRadius + props.outerRadius) / 2;
+      const x = props.x + Math.cos(mid) * radius;
+      const y = props.y + Math.sin(mid) * radius;
+      const color = Array.isArray(dataset.backgroundColor)
+        ? dataset.backgroundColor[index]
+        : dataset.backgroundColor;
+      const pct = ((value / total) * 100).toFixed(1).replace(".", ",");
+      const ink = thin ? chartDefaults().outside : contrastTextOn(color);
+
+      ctx.fillStyle = ink;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      if (thin) {
+        ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
+        ctx.fillText(`${value} · ${pct}%`, x, y);
+      } else {
+        ctx.font = "700 15px 'DM Sans', system-ui, sans-serif";
+        ctx.fillText(String(value), x, y - 8);
+        ctx.font = "600 11px 'DM Sans', system-ui, sans-serif";
+        ctx.fillText(`${pct}%`, x, y + 9);
+      }
+    });
+    ctx.restore();
+  },
+};
 
 function renderDonut(rows) {
   destroyChart("donut");
@@ -667,13 +951,15 @@ function renderDonut(rows) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: "62%",
+      cutout: "58%",
+      layout: { padding: 22 },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${c.label}: ${c.raw}` } } },
       onClick: (_, els) => {
         if (!els.length) return;
         toggleFilter("faixa", FAIXAS[els[0].index].key);
       },
     },
+    plugins: [donutSliceLabelsPlugin],
   });
   document.getElementById("chartDonutTitle").textContent = "Faixas de desempenho";
   document.getElementById("chartDonutSub").textContent = DISCIPLINAS[state.disciplina];
@@ -687,7 +973,9 @@ function escolaBaseNome(nome) {
 
 function qtdTurmasEscola(escolaNome) {
   const base = escolaBaseNome(escolaNome);
-  return DADOS.turmas.filter((row) => row.escola === base).length;
+  return turmasBase({ escola: true, turma: true, faixa: true, search: true }).filter(
+    (row) => row.escola === base
+  ).length;
 }
 
 function isMultiTurmaEscola(escolaNome) {
@@ -763,6 +1051,8 @@ function renderRankingEscolas() {
 
   const ctx = document.getElementById("chartRankingEscolas");
   const labels = sorted.map((row) => labelEscolaRow(row));
+  const medias = sorted.map((row) => mediaEscolaRow(row));
+  const ranks = competitionRanks(medias);
   charts.rankingEscolas = new Chart(ctx, {
     type: "bar",
     data: {
@@ -770,8 +1060,9 @@ function renderRankingEscolas() {
       datasets: [
         {
           label: "Média %",
-          data: sorted.map((row) => mediaEscolaRow(row)),
+          data: medias,
           alunos: sorted.map((row) => metricAvaliados(row)),
+          ranks,
           backgroundColor: sorted.map((row) => {
             const faixa = faixaFromMedia(mediaEscolaRow(row));
             return isMultiTurmaEscola(row.escola) ? faixa.color : `${faixa.color}cc`;
@@ -837,6 +1128,8 @@ function renderRanking(rows) {
 
   const ctx = document.getElementById("chartRanking");
   const labels = labelRows(sorted);
+  const medias = sorted.map((r) => mediaRow(r));
+  const ranks = competitionRanks(medias);
   charts.ranking = new Chart(ctx, {
     type: "bar",
     data: {
@@ -844,8 +1137,9 @@ function renderRanking(rows) {
       datasets: [
         {
           label: "Média %",
-          data: sorted.map((r) => mediaRow(r)),
+          data: medias,
           alunos: sorted.map((r) => metricAvaliados(r)),
+          ranks,
           backgroundColor: sorted.map((r) => faixaFromMedia(mediaRow(r)).color),
           borderRadius: 8,
         },
@@ -883,17 +1177,20 @@ function renderRanking(rows) {
 }
 
 function questoesData() {
+  if (!periodoTemDados()) return [];
+  const bundle = periodoBundle();
+  const meta = bundle.meta;
   const isMat = state.disciplina === "mat";
   const isLp = state.disciplina === "lp";
-  const questoes = isMat ? DADOS.meta.questoesMat : DADOS.meta.questoesLp;
-  const mediaMap = isMat ? DADOS.meta.mediaQuestoesMat : DADOS.meta.mediaQuestoesLp;
-  const acertosMap = isMat ? DADOS.meta.acertosQuestoesMat : DADOS.meta.acertosQuestoesLp;
+  const questoes = isMat ? meta.questoesMat : meta.questoesLp;
+  const mediaMap = isMat ? meta.mediaQuestoesMat : meta.mediaQuestoesLp;
+  const acertosMap = isMat ? meta.acertosQuestoesMat : meta.acertosQuestoesLp;
 
   if (state.escola) {
     const key = state.visao === "turmas" && state.turma !== "ÚNICA"
       ? `${state.escola} - ${state.turma}`
       : state.escola;
-    const source = isMat ? DADOS.escolasQuestoesMat : DADOS.escolasQuestoesLp;
+    const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
     const altKey = Object.keys(source).find((k) => k.startsWith(state.escola));
     const school = source[key] || source[altKey];
     if (school?.questoes) {
@@ -913,15 +1210,15 @@ function questoesData() {
     }));
   }
 
-  const lp = DADOS.meta.mediaQuestoesLp;
-  const mat = DADOS.meta.mediaQuestoesMat;
-  const acLp = DADOS.meta.acertosQuestoesLp || {};
-  const acMat = DADOS.meta.acertosQuestoesMat || {};
-  const maxLen = Math.max(DADOS.meta.questoesLp.length, DADOS.meta.questoesMat.length);
+  const lp = meta.mediaQuestoesLp;
+  const mat = meta.mediaQuestoesMat;
+  const acLp = meta.acertosQuestoesLp || {};
+  const acMat = meta.acertosQuestoesMat || {};
+  const maxLen = Math.max(meta.questoesLp.length, meta.questoesMat.length);
   const out = [];
   for (let i = 0; i < maxLen; i += 1) {
-    const qLp = DADOS.meta.questoesLp[i];
-    const qMat = DADOS.meta.questoesMat[i];
+    const qLp = meta.questoesLp[i];
+    const qMat = meta.questoesMat[i];
     if (qLp && lp[qLp] != null) {
       out.push({ q: `LP ${qLp.replace("Questão ", "Q")}`, v: lp[qLp], acertos: acLp[qLp] ?? null, group: "lp" });
     }
@@ -933,9 +1230,12 @@ function questoesData() {
 }
 
 function questoesAvaliadosTotal() {
+  if (!periodoTemDados()) return 0;
+  const bundle = periodoBundle();
+  const meta = bundle.meta;
   const isMat = state.disciplina === "mat";
   const isLp = state.disciplina === "lp";
-  const source = isMat ? DADOS.escolasQuestoesMat : DADOS.escolasQuestoesLp;
+  const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
 
   if (state.escola) {
     const keys = Object.keys(source).filter((k) => {
@@ -948,8 +1248,8 @@ function questoesAvaliadosTotal() {
       if (isLp || isMat) {
         return keys.reduce((acc, key) => acc + (source[key].avaliados || 0), 0);
       }
-      const lp = DADOS.escolasQuestoesLp;
-      const mat = DADOS.escolasQuestoesMat;
+      const lp = bundle.escolasQuestoesLp;
+      const mat = bundle.escolasQuestoesMat;
       const lpKeys = Object.keys(lp).filter((k) => k === state.escola || k.startsWith(`${state.escola} -`) || k.startsWith(state.escola));
       const matKeys = Object.keys(mat).filter((k) => k === state.escola || k.startsWith(`${state.escola} -`) || k.startsWith(state.escola));
       const avalLp = lpKeys.reduce((acc, key) => acc + (lp[key].avaliados || 0), 0);
@@ -958,9 +1258,9 @@ function questoesAvaliadosTotal() {
     }
   }
 
-  if (isLp) return DADOS.meta.avaliadosLp || 0;
-  if (isMat) return DADOS.meta.avaliadosMat || 0;
-  return DADOS.meta.totalAvaliados || 0;
+  if (isLp) return meta.avaliadosLp || 0;
+  if (isMat) return meta.avaliadosMat || 0;
+  return meta.totalAvaliados || 0;
 }
 
 function renderQuestoes() {
@@ -1146,16 +1446,31 @@ function exportCsv(rows) {
   URL.revokeObjectURL(a.href);
 }
 
+function syncRankingCards() {
+  // Visão por turma → ranking de turmas ao lado da pizza (mesmo com escola filtrada)
+  // Visão por escola → ranking de escolas ao lado da pizza
+  const hideTurma = state.visao === "escolas";
+  const hideEscola = state.visao === "turmas";
+  const cardTurma = document.getElementById("cardRankingTurma");
+  const cardEscola = document.getElementById("cardRankingEscola");
+  if (cardTurma) cardTurma.hidden = hideTurma;
+  if (cardEscola) cardEscola.hidden = hideEscola;
+  return { hideTurma, hideEscola };
+}
+
 function render() {
   fillSelects();
   const rows = activeRows();
   renderChips();
   renderKPIs(rows);
   if (state.view === "dashboard") {
-    renderComparativo(rows);
+    const { hideTurma, hideEscola } = syncRankingCards();
+    renderComparativo();
     renderDonut(rows);
-    renderRanking(rows);
-    renderRankingEscolas();
+    if (hideTurma) destroyChart("ranking");
+    else renderRanking(rows);
+    if (hideEscola) destroyChart("rankingEscolas");
+    else renderRankingEscolas();
     renderQuestoes();
   } else {
     renderTable(rows);
@@ -1198,6 +1513,13 @@ function bindEvents() {
     render();
   });
 
+  document.getElementById("filterPeriodo").addEventListener("change", (e) => {
+    state.periodo = e.target.value;
+    state.page = 1;
+    fillSelects();
+    render();
+  });
+
   document.getElementById("btnTheme").addEventListener("click", () => {
     applyTheme(currentTheme() === "light" ? "dark" : "light");
     render();
@@ -1209,6 +1531,7 @@ function bindEvents() {
       disciplina: "geral",
       escola: "",
       turma: "",
+      periodo: periodoPadrao(),
       faixa: "",
       search: "",
       page: 1,
@@ -1228,6 +1551,7 @@ function bindEvents() {
     const key = btn.dataset.clear;
     if (key === "visao") state.visao = "turmas";
     else if (key === "disciplina") state.disciplina = "geral";
+    else if (key === "periodo") state.periodo = periodoPadrao();
     else state[key] = "";
     state.page = 1;
     fillSelects();
@@ -1280,6 +1604,7 @@ function bindEvents() {
 }
 
 function init() {
+  state.periodo = periodoPadrao();
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "numeric",

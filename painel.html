@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=9" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -64,8 +64,8 @@
           </div>
           <div class="hero-title-block">
             <h2 class="hero-title">
-              <span>Avaliação Diagnóstica — ADSE</span>
-              <span>5º ANO · FORMATIVA/PERCURSO</span>
+              <span>Avaliação de Desempenho da Secretaria de Educação - ADSE</span>
+              <span>5º ANO</span>
               <span>Língua Portuguesa e Matemática</span>
             </h2>
             <p>Clique nos gráficos para filtrar o painel.</p>
@@ -96,6 +96,14 @@
             <span>Turma</span>
             <select id="filterTurma"></select>
           </label>
+          <label class="select">
+            <span>Período</span>
+            <select id="filterPeriodo">
+              <option value="diagnostica">Diagnóstica</option>
+              <option value="percurso">Percurso</option>
+              <option value="saida">Saída</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -111,8 +119,8 @@
           <article class="card chart-card">
             <div class="card-head">
               <div>
-                <h2>Português × Matemática</h2>
-                <p>Comparativo de médias por unidade escolar</p>
+                <h2 id="chartComparativoTitle">Diagnóstica × Percurso × Saída</h2>
+                <p id="chartComparativoSub">Comparativo de médias por unidade escolar</p>
               </div>
             </div>
             <div class="chart-wrap tall">
@@ -137,32 +145,32 @@
             </div>
           </article>
 
-          <article class="card chart-card">
-            <div class="card-head">
-              <div>
-                <h2 id="chartRankingTitle">Ranking</h2>
-                <p id="chartRankingSub">Média geral por turma · clique para filtrar</p>
+          <div class="ranking-slot">
+            <article class="card chart-card" id="cardRankingTurma">
+              <div class="card-head">
+                <div>
+                  <h2 id="chartRankingTitle">Ranking</h2>
+                  <p id="chartRankingSub">Média geral por turma · clique para filtrar</p>
+                </div>
               </div>
-            </div>
-            <div class="chart-wrap escolas" id="chartRankingWrap">
-              <canvas id="chartRanking"></canvas>
-            </div>
-          </article>
-        </div>
+              <div class="chart-wrap escolas" id="chartRankingWrap">
+                <canvas id="chartRanking"></canvas>
+              </div>
+            </article>
 
-        <div class="layout-bottom single" style="margin-top: 16px;">
-          <article class="card chart-card">
-            <div class="card-head">
-              <div>
-                <h2 id="chartRankingEscolasTitle">Ranking por escola</h2>
-                <p id="chartRankingEscolasSub">Média ponderada · turmas agrupadas · clique para filtrar</p>
+            <article class="card chart-card" id="cardRankingEscola">
+              <div class="card-head">
+                <div>
+                  <h2 id="chartRankingEscolasTitle">Ranking por escola</h2>
+                  <p id="chartRankingEscolasSub">Média ponderada · turmas agrupadas · clique para filtrar</p>
+                </div>
+                <ul class="legend compact" id="rankingEscolasLegend"></ul>
               </div>
-              <ul class="legend compact" id="rankingEscolasLegend"></ul>
-            </div>
-            <div class="chart-wrap escolas comparativo" id="chartRankingEscolasWrap">
-              <canvas id="chartRankingEscolas"></canvas>
-            </div>
-          </article>
+              <div class="chart-wrap escolas comparativo" id="chartRankingEscolasWrap">
+                <canvas id="chartRankingEscolas"></canvas>
+              </div>
+            </article>
+          </div>
         </div>
 
         <div class="layout-bottom" style="margin-top: 16px;">
@@ -225,7 +233,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="dados.js?v=5"></script>
-  <script src="app.js?v=27"></script>
+  <script src="dados.js?v=8"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

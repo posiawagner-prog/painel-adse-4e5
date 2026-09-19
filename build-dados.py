@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+from decimal import Decimal, ROUND_HALF_UP
 
 try:
     import openpyxl
@@ -16,6 +17,12 @@ except ImportError:
     import openpyxl
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def round_half_up(value: float, ndigits: int = 2) -> float:
+    """Arredonda como o Excel (0,5 para cima), não o banker's rounding do Python."""
+    d = Decimal(f"{float(value):.{ndigits + 8}f}")
+    return float(d.quantize(Decimal(1).scaleb(-ndigits), rounding=ROUND_HALF_UP))
 
 
 def norm(text: str) -> str:
@@ -76,7 +83,8 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
                     quant = ws.cell(row, 4 + index * 2).value
                     pct = ws.cell(row, 5 + index * 2).value
                     if isinstance(pct, (int, float)):
-                        questoes[question] = round(float(pct), 2)
+                        # Mantém precisão cheia; arredonda só na média final / exportação.
+                        questoes[question] = float(pct)
                     if isinstance(quant, (int, float)):
                         acertos[question] = int(quant)
                 schools[escola]["questoes"] = questoes
@@ -106,7 +114,7 @@ def avg_questions(questions: list[str], schools: dict[str, dict]) -> dict[str, f
             weighted += float(pct) * avaliados
             total += avaliados
         if total:
-            result[question] = round(weighted / total, 2)
+            result[question] = round_half_up(weighted / total, 2)
     return result
 
 
@@ -121,15 +129,29 @@ def sum_acertos(questions: list[str], schools: dict[str, dict]) -> dict[str, int
 
 
 def media_from_questoes(questoes: dict[str, float]) -> float:
+    """Média das questões em precisão cheia (arredonda só depois, como no Excel)."""
     if not questoes:
         return 0.0
-    return round(sum(questoes.values()) / len(questoes), 2)
+    return sum(questoes.values()) / len(questoes)
 
 
 def assign_ranking(items: list[dict], field: str, target: str) -> None:
+    """Ranking com empate denso: mesmas médias recebem a mesma posição; a próxima continua.
+    Ex.: 10º, 11º, 11º, 12º.
+    """
     ranked = sorted(items, key=lambda item: item[field], reverse=True)
-    for index, item in enumerate(ranked, start=1):
-        item[target] = f"{index}º"
+    index = 0
+    position = 1
+    while index < len(ranked):
+        value = round_half_up(ranked[index][field], 2)
+        end = index + 1
+        while end < len(ranked) and round_half_up(ranked[end][field], 2) == value:
+            end += 1
+        label = f"{position}º"
+        for item in ranked[index:end]:
+            item[target] = label
+        position += 1
+        index = end
 
 
 def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> list[dict]:
@@ -143,11 +165,19 @@ def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> l
         aval_lp = lp.get("avaliados", 0)
         prev_mat = mat.get("previstos", 0)
         aval_mat = mat.get("avaliados", 0)
-        previstos = max(prev_lp, prev_mat)
-        avaliados = min(aval_lp, aval_mat) if aval_lp and aval_mat else max(aval_lp, aval_mat)
-        media_lp = media_from_questoes(lp.get("questoes", {}))
-        media_mat = media_from_questoes(mat.get("questoes", {}))
-        media_geral = round((media_lp + media_mat) / 2, 2) if media_lp or media_mat else 0.0
+        # Visão geral: junta Português e Matemática pela média dos totais.
+        if prev_lp or prev_mat:
+            previstos = int(round_half_up((prev_lp + prev_mat) / 2, 0))
+        else:
+            previstos = 0
+        if aval_lp or aval_mat:
+            avaliados = int(round_half_up((aval_lp + aval_mat) / 2, 0))
+        else:
+            avaliados = 0
+        media_lp = round_half_up(media_from_questoes(lp.get("questoes", {})), 2)
+        media_mat = round_half_up(media_from_questoes(mat.get("questoes", {})), 2)
+        # Igual ao Excel: média das médias já arredondadas (ex.: 82,19 + 52,68 → 67,44)
+        media_geral = round_half_up((media_lp + media_mat) / 2, 2) if media_lp or media_mat else 0.0
         turmas.append(
             {
                 "ano": 5,
@@ -155,10 +185,13 @@ def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> l
                 "turma": turma,
                 "previstos": previstos,
                 "avaliados": avaliados,
-                "participacao": round(avaliados / previstos * 100, 1) if previstos else 0,
+                "participacao": round_half_up(avaliados / previstos * 100, 1) if previstos else 0,
                 "mediaLp": media_lp,
                 "mediaMat": media_mat,
                 "mediaGeral": media_geral,
+                "_mediaLp": media_lp,
+                "_mediaMat": media_mat,
+                "_mediaGeral": media_geral,
                 "previstosLp": prev_lp,
                 "avaliadosLp": aval_lp,
                 "previstosMat": prev_mat,
@@ -189,15 +222,16 @@ def build_escolas(turmas: list[dict]) -> list[dict]:
         aval_lp = sum(row["avaliadosLp"] for row in rows)
         prev_mat = sum(row["previstosMat"] for row in rows)
         aval_mat = sum(row["avaliadosMat"] for row in rows)
-        media_lp = round(sum(row["mediaLp"] * row["avaliadosLp"] for row in rows) / aval_lp, 2) if aval_lp else 0
-        media_mat = round(sum(row["mediaMat"] * row["avaliadosMat"] for row in rows) / aval_mat, 2) if aval_mat else 0
-        media_geral = round(sum(row["mediaGeral"] * row["avaliados"] for row in rows) / avaliados, 2) if avaliados else 0
+        # Usa as médias já arredondadas das turmas; geral = média dessas médias (como no Excel).
+        media_lp = round_half_up(sum(row["_mediaLp"] for row in rows) / len(rows), 2) if rows else 0
+        media_mat = round_half_up(sum(row["_mediaMat"] for row in rows) / len(rows), 2) if rows else 0
+        media_geral = round_half_up((media_lp + media_mat) / 2, 2) if rows else 0
         escolas.append(
             {
                 "escola": nome,
                 "previstos": previstos,
                 "avaliados": avaliados,
-                "participacao": round(avaliados / previstos * 100, 1) if previstos else 0,
+                "participacao": round_half_up(avaliados / previstos * 100, 1) if previstos else 0,
                 "mediaLp": media_lp,
                 "mediaMat": media_mat,
                 "mediaGeral": media_geral,
@@ -215,15 +249,71 @@ def build_escolas(turmas: list[dict]) -> list[dict]:
     return escolas
 
 
-def find_xlsx() -> str:
+def finalize_questoes(schools: dict[str, dict]) -> None:
+    for school in schools.values():
+        school["questoes"] = {
+            key: round_half_up(value, 2) for key, value in school.get("questoes", {}).items()
+        }
+
+
+def strip_private_fields(turmas: list[dict]) -> None:
+    for row in turmas:
+        row.pop("_mediaLp", None)
+        row.pop("_mediaMat", None)
+        row.pop("_mediaGeral", None)
+
+
+PERIOD_METRIC_KEYS = (
+    "previstos",
+    "avaliados",
+    "participacao",
+    "mediaLp",
+    "mediaMat",
+    "mediaGeral",
+    "previstosLp",
+    "avaliadosLp",
+    "previstosMat",
+    "avaliadosMat",
+    "rankingGeral",
+    "rankingLp",
+    "rankingMat",
+    "ranking",
+)
+
+PERIOD_LABELS = {
+    "diagnostica": "Diagnóstica",
+    "percurso": "Formativa/Percurso",
+    "saida": "Saída",
+}
+
+
+def classify_periodo(filename: str) -> str | None:
+    name = filename.lower()
+    if "diagn" in name:
+        return "diagnostica"
+    if "percurso" in name or "formativa" in name:
+        return "percurso"
+    if "saida" in name or "saída" in name:
+        return "saida"
+    return None
+
+
+def find_xlsx_by_periodo() -> dict[str, str]:
+    found: dict[str, str] = {}
     for name in os.listdir(ROOT):
-        if name.lower().endswith(".xlsx"):
-            return os.path.join(ROOT, name)
-    raise FileNotFoundError("Nenhuma planilha .xlsx encontrada em DashboardADSE")
+        if not name.lower().endswith(".xlsx"):
+            continue
+        periodo = classify_periodo(name)
+        if not periodo:
+            continue
+        # Prefere o primeiro arquivo encontrado por período.
+        found.setdefault(periodo, os.path.join(ROOT, name))
+    if not found:
+        raise FileNotFoundError("Nenhuma planilha .xlsx de período encontrada em DashboardADSE")
+    return found
 
 
-def build() -> dict:
-    fp = find_xlsx()
+def build_periodo(fp: str, periodo: str) -> dict:
     wb = openpyxl.load_workbook(fp, data_only=True)
 
     sheet_lp = find_sheet(wb, ["Português", "Portugues"])
@@ -232,19 +322,25 @@ def build() -> dict:
     questoes_mat, escolas_mat = parse_questions(wb, sheet_mat)
     turmas = build_turmas(escolas_lp, escolas_mat)
     escolas = build_escolas(turmas)
+    finalize_questoes(escolas_lp)
+    finalize_questoes(escolas_mat)
+    strip_private_fields(turmas)
 
-    total_previstos = sum(t["previstos"] for t in turmas)
-    total_avaliados = sum(t["avaliados"] for t in turmas)
     total_previstos_lp = sum(t["previstosLp"] for t in turmas)
     total_avaliados_lp = sum(t["avaliadosLp"] for t in turmas)
     total_previstos_mat = sum(t["previstosMat"] for t in turmas)
     total_avaliados_mat = sum(t["avaliadosMat"] for t in turmas)
+    # Totais da visão geral = média dos totais de Português e Matemática
+    total_previstos = int(round_half_up((total_previstos_lp + total_previstos_mat) / 2, 0))
+    total_avaliados = int(round_half_up((total_avaliados_lp + total_avaliados_mat) / 2, 0))
 
+    label = PERIOD_LABELS.get(periodo, periodo)
     return {
         "meta": {
             "titulo": "Avaliação Diagnóstica do Sistema Estadual — ADSE",
-            "subtitulo": "5º Ano · Avaliação Formativa/Percurso · 1º Semestre 2026",
+            "subtitulo": f"5º Ano · {label} · 1º Semestre 2026",
             "fonte": os.path.basename(fp),
+            "periodo": periodo,
             "ano": 5,
             "totalPrevistos": total_previstos,
             "totalAvaliados": total_avaliados,
@@ -252,18 +348,31 @@ def build() -> dict:
             "avaliadosLp": total_avaliados_lp,
             "previstosMat": total_previstos_mat,
             "avaliadosMat": total_avaliados_mat,
-            "participacaoGeral": round(total_avaliados / total_previstos * 100, 1)
+            "participacaoGeral": round_half_up(total_avaliados / total_previstos * 100, 1)
             if total_previstos
             else 0,
-            "mediaLpGeral": round(sum(t["mediaLp"] * t["avaliadosLp"] for t in turmas) / total_avaliados_lp, 2)
+            "mediaLpGeral": round_half_up(sum(t["mediaLp"] * t["avaliadosLp"] for t in turmas) / total_avaliados_lp, 2)
             if total_avaliados_lp
             else 0,
-            "mediaMatGeral": round(sum(t["mediaMat"] * t["avaliadosMat"] for t in turmas) / total_avaliados_mat, 2)
+            "mediaMatGeral": round_half_up(sum(t["mediaMat"] * t["avaliadosMat"] for t in turmas) / total_avaliados_mat, 2)
             if total_avaliados_mat
             else 0,
-            "mediaGeral": round(sum(t["mediaGeral"] * t["avaliados"] for t in turmas) / total_avaliados, 2)
-            if total_avaliados
-            else 0,
+            "mediaGeral": round_half_up(
+                (
+                    (
+                        round_half_up(sum(t["mediaLp"] * t["avaliadosLp"] for t in turmas) / total_avaliados_lp, 2)
+                        if total_avaliados_lp
+                        else 0
+                    )
+                    + (
+                        round_half_up(sum(t["mediaMat"] * t["avaliadosMat"] for t in turmas) / total_avaliados_mat, 2)
+                        if total_avaliados_mat
+                        else 0
+                    )
+                )
+                / 2,
+                2,
+            ),
             "questoesLp": questoes_lp,
             "questoesMat": questoes_mat,
             "mediaQuestoesLp": avg_questions(questoes_lp, escolas_lp),
@@ -278,13 +387,92 @@ def build() -> dict:
     }
 
 
+def metrics_block(row: dict) -> dict:
+    return {key: row[key] for key in PERIOD_METRIC_KEYS if key in row}
+
+
+def merge_turmas(periodos_data: dict[str, dict]) -> list[dict]:
+    merged: dict[tuple[str, str], dict] = {}
+    for periodo, data in periodos_data.items():
+        for row in data["turmas"]:
+            key = (row["escola"], row["turma"])
+            entry = merged.setdefault(
+                key,
+                {"ano": row.get("ano", 5), "escola": row["escola"], "turma": row["turma"], "periodos": {}},
+            )
+            entry["periodos"][periodo] = metrics_block(row)
+    return [merged[key] for key in sorted(merged)]
+
+
+def merge_escolas(periodos_data: dict[str, dict]) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for periodo, data in periodos_data.items():
+        for row in data["escolas"]:
+            key = row["escola"]
+            entry = merged.setdefault(key, {"escola": row["escola"], "periodos": {}})
+            entry["periodos"][periodo] = metrics_block(row)
+    return [merged[key] for key in sorted(merged)]
+
+
+def build() -> dict:
+    files = find_xlsx_by_periodo()
+    # Ordem estável: Diagnóstica → Percurso → Saída
+    order = ["diagnostica", "percurso", "saida"]
+    periodos_data: dict[str, dict] = {}
+    for periodo in order:
+        fp = files.get(periodo)
+        if not fp:
+            continue
+        periodos_data[periodo] = build_periodo(fp, periodo)
+
+    if not periodos_data:
+        raise FileNotFoundError("Nenhum período processado")
+
+    disponiveis = list(periodos_data.keys())
+    padrao = "percurso" if "percurso" in periodos_data else disponiveis[0]
+    padrao_data = periodos_data[padrao]
+    labels = [PERIOD_LABELS.get(p, p) for p in disponiveis]
+
+    by_periodo = {
+        periodo: {
+            "meta": data["meta"],
+            "escolasQuestoesLp": data["escolasQuestoesLp"],
+            "escolasQuestoesMat": data["escolasQuestoesMat"],
+        }
+        for periodo, data in periodos_data.items()
+    }
+
+    meta = {
+        **padrao_data["meta"],
+        "subtitulo": f"5º Ano · {' · '.join(labels)} · 1º Semestre 2026",
+        "periodo": padrao,
+        "periodoPadrao": padrao,
+        "periodosDisponiveis": disponiveis,
+        "fontes": {periodo: data["meta"]["fonte"] for periodo, data in periodos_data.items()},
+    }
+
+    return {
+        "meta": meta,
+        "byPeriodo": by_periodo,
+        "turmas": merge_turmas(periodos_data),
+        "escolas": merge_escolas(periodos_data),
+        # Compatibilidade: questões do período padrão no nível raiz
+        "escolasQuestoesLp": padrao_data["escolasQuestoesLp"],
+        "escolasQuestoesMat": padrao_data["escolasQuestoesMat"],
+    }
+
+
 def main() -> None:
     data = build()
     target = os.path.join(ROOT, "dados.js")
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     with open(target, "w", encoding="utf-8") as handle:
         handle.write(f"const DADOS = {payload};\n")
-    print(f"Gerado {len(data['turmas'])} turmas e {len(data['escolas'])} escolas em {target}")
+    periodos = ", ".join(data["meta"]["periodosDisponiveis"])
+    print(
+        f"Gerado {len(data['turmas'])} turmas e {len(data['escolas'])} escolas "
+        f"({periodos}) em {target}"
+    )
 
 
 if __name__ == "__main__":
