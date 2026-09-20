@@ -526,7 +526,7 @@ function renderKPIs(rows) {
       value: fmt(previstosCard),
       foot:
         state.disciplina === "geral"
-          ? `LP <span class="num">${fmt(prevLp)}</span> · MAT <span class="num">${fmt(prevMat)}</span><br><span class="num">${fmt(avaliadosCard)}</span> avaliados`
+          ? `LP <span class="num">${fmt(prevLp)}</span> · MAT <span class="num">${fmt(prevMat)}</span> · <span class="num">${fmt(avaliadosCard)}</span> avaliados`
           : `<span class="num">${fmt(avaliadosCard)}</span> avaliados`,
       icon: "tot",
     },
@@ -557,18 +557,20 @@ function renderKPIs(rows) {
   ];
 
   if (state.disciplina === "geral") {
-    leftCards.push({
-      title: "Português",
-      value: fmtPct(agg.mediaLp),
-      foot: `<span class="num">${fmt(prevLp)}</span> prev · <span class="num">${fmt(avalLp)}</span> aval`,
-      icon: "ava",
-    });
-    rightCards.push({
-      title: "Matemática",
-      value: fmtPct(agg.mediaMat),
-      foot: `<span class="num">${fmt(prevMat)}</span> prev · <span class="num">${fmt(avalMat)}</span> aval`,
-      icon: "pre",
-    });
+    rightCards.push(
+      {
+        title: "Português",
+        value: fmtPct(agg.mediaLp),
+        foot: `<span class="num">${fmt(prevLp)}</span> prev · <span class="num">${fmt(avalLp)}</span> aval`,
+        icon: "ava",
+      },
+      {
+        title: "Matemática",
+        value: fmtPct(agg.mediaMat),
+        foot: `<span class="num">${fmt(prevMat)}</span> prev · <span class="num">${fmt(avalMat)}</span> aval`,
+        icon: "pre",
+      }
+    );
   }
 
   const iconHtml = {
@@ -715,8 +717,26 @@ const questoesBarLabelsPlugin = {
     const dataset = chart.data.datasets[0];
     const areaTop = chart.chartArea?.top ?? 0;
     const { ink, outside } = chartDefaults();
+    const bars = meta.data;
+
+    const halfSpace = (index) => {
+      const bar = bars[index];
+      const props = bar.getProps(["x", "width"], true);
+      let left = Math.abs(props.width || 0) / 2;
+      let right = left;
+      if (index > 0) {
+        const prev = bars[index - 1].getProps(["x"], true);
+        left = Math.min(left, (props.x - prev.x) / 2);
+      }
+      if (index < bars.length - 1) {
+        const next = bars[index + 1].getProps(["x"], true);
+        right = Math.min(right, (next.x - props.x) / 2);
+      }
+      return Math.max(0, Math.min(left, right));
+    };
+
     ctx.save();
-    meta.data.forEach((bar, index) => {
+    bars.forEach((bar, index) => {
       const value = dataset.data[index];
       if (value == null) return;
 
@@ -740,11 +760,29 @@ const questoesBarLabelsPlugin = {
       }
       pctY = Math.max(pctY, areaTop + 2);
 
+      const pctLabel = fmtPct(value);
       ctx.fillStyle = outside;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
       ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
-      ctx.fillText(fmtPct(value), bar.x, pctY);
+      const pctW = ctx.measureText(pctLabel).width;
+      const fitsHorizontal =
+        state.disciplina === "lp" ||
+        state.disciplina === "mat" ||
+        pctW / 2 + 1 <= halfSpace(index);
+
+      if (fitsHorizontal) {
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(pctLabel, bar.x, pctY);
+      } else {
+        // Vertical 90° só quando o texto não cabe na largura disponível
+        ctx.save();
+        ctx.translate(bar.x, pctY);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(pctLabel, 2, 0);
+        ctx.restore();
+      }
 
       if (!acertosText) return;
 
@@ -763,28 +801,121 @@ const questoesBarLabelsPlugin = {
   },
 };
 
+const comparativoBarLabelsPlugin = {
+  id: "comparativoBarLabels",
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const { outside } = chartDefaults();
+    const areaTop = chart.chartArea?.top ?? 0;
+    ctx.save();
+    ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
+    ctx.fillStyle = outside;
+
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (!meta?.data?.length || meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if (value == null) return;
+
+        const label = fmtPct(value);
+        const props = bar.getProps(["x", "y", "base"], true);
+        const top = Math.min(props.y, props.base);
+        const cx = props.x;
+
+        // Sempre fora da barra, vertical 90°, em qualquer disciplina
+        const anchorY = Math.max(top - 4, areaTop + 2);
+        ctx.save();
+        ctx.translate(cx, anchorY);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, 2, 0);
+        ctx.restore();
+      });
+    });
+    ctx.restore();
+  },
+};
+
+const comparativoStickyYAxisPlugin = {
+  id: "comparativoStickyYAxis",
+  afterDraw(chart) {
+    const axis = document.getElementById("comparativoYAxis");
+    const y = chart.scales?.y;
+    if (!axis || !y) return;
+    const { muted } = chartDefaults();
+    axis.innerHTML = y.ticks
+      .map((tick) => {
+        const top = y.getPixelForValue(tick.value);
+        const label =
+          tick.label != null && tick.label !== ""
+            ? Array.isArray(tick.label)
+              ? tick.label.join("")
+              : String(tick.label)
+            : `${tick.value}%`;
+        return `<span class="comparativo-y-tick" style="top:${top}px;color:${muted}">${label}</span>`;
+      })
+      .join("");
+  },
+};
+
 function renderComparativo() {
   destroyChart("comparativo");
-  const { muted, text } = chartDefaults();
+  const { muted } = chartDefaults();
   // Comparativo entre períodos: ignora o filtro de período para manter as 3 séries.
   const rows = state.visao === "escolas" ? escolasBase({ periodo: true }) : turmasBase({ periodo: true });
   const sortMedia = (r) =>
     mediaPeriodoRow(r, state.periodo) ?? mediaPeriodoRow(r, PERIODO_DADOS) ?? mediaPeriodoRow(r, "percurso") ?? 0;
-  const sorted = [...rows].sort((a, b) => sortMedia(b) - sortMedia(a)).slice(0, 12);
+  const sorted = [...rows].sort((a, b) => sortMedia(b) - sortMedia(a));
 
   const titleEl = document.getElementById("chartComparativoTitle");
   const subEl = document.getElementById("chartComparativoSub");
   if (titleEl) titleEl.textContent = "Diagnóstica × Percurso × Saída";
   if (subEl) {
-    subEl.textContent = `${DISCIPLINAS[state.disciplina]} · destaque: ${PERIODOS[state.periodo] || state.periodo}`;
+    const escopo = state.visao === "escolas" ? "escolas" : "turmas";
+    subEl.textContent = `${DISCIPLINAS[state.disciplina]} · ${sorted.length} ${escopo} · destaque: ${PERIODOS[state.periodo] || state.periodo}`;
+  }
+
+  const wrap = document.getElementById("chartComparativoWrap");
+  if (wrap) {
+    const minPx = Math.max(720, sorted.length * 88);
+    wrap.style.minWidth = `${minPx}px`;
   }
 
   const periodoKeys = ["diagnostica", "percurso", "saida"];
-  const periodoColors = {
-    diagnostica: { on: "rgba(61, 123, 255, 0.9)", off: "rgba(61, 123, 255, 0.28)" },
-    percurso: { on: "rgba(0, 230, 118, 0.9)", off: "rgba(0, 230, 118, 0.28)" },
-    saida: { on: "rgba(255, 176, 32, 0.9)", off: "rgba(255, 176, 32, 0.28)" },
-  };
+  const isLight = currentTheme() === "light";
+  const periodoColors = isLight
+    ? {
+        diagnostica: "#FF3B30",
+        percurso: "#0000FF",
+        saida: "#FF9F0A",
+      }
+    : {
+        diagnostica: "#FF3B30",
+        percurso: "#0000FF",
+        saida: "#FFB020",
+      };
+
+  const legendEl = document.getElementById("comparativoLegend");
+  if (legendEl) {
+    legendEl.innerHTML = periodoKeys
+      .map(
+        (periodo) =>
+          `<li data-periodo="${periodo}" class="${state.periodo === periodo ? "active" : ""}"><span class="swatch" style="background:${periodoColors[periodo]}"></span><span>${PERIODOS[periodo]}</span></li>`
+      )
+      .join("");
+    legendEl.querySelectorAll("li").forEach((li) => {
+      li.addEventListener("click", () => {
+        const periodo = li.dataset.periodo;
+        if (!periodo || !periodoTemDados(periodo)) return;
+        state.periodo = periodo;
+        state.page = 1;
+        fillSelects();
+        render();
+      });
+    });
+  }
 
   const ctx = document.getElementById("chartComparativo");
   charts.comparativo = new Chart(ctx, {
@@ -792,28 +923,53 @@ function renderComparativo() {
     data: {
       labels: labelRows(sorted),
       datasets: periodoKeys.map((periodo) => {
-        const active = state.periodo === periodo;
-        const colors = periodoColors[periodo];
+        const color = periodoColors[periodo];
         return {
           label: PERIODOS[periodo],
           periodo,
           data: sorted.map((r) => mediaPeriodoRow(r, periodo)),
-          backgroundColor: active ? colors.on : colors.off,
-          borderColor: active ? colors.on.replace("0.9", "1") : "transparent",
-          borderWidth: active ? 1 : 0,
+          backgroundColor: color,
+          hoverBackgroundColor: color,
+          borderColor: color,
+          hoverBorderColor: color,
+          borderWidth: 0,
+          hoverBorderWidth: 0,
           borderRadius: 8,
+          barPercentage: 0.98,
+          categoryPercentage: 0.92,
         };
       }),
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 56 } },
+      datasets: {
+        bar: {
+          barPercentage: 0.98,
+          categoryPercentage: 0.92,
+        },
+      },
       scales: {
         x: { ticks: { color: muted, maxRotation: 45, minRotation: 0 }, grid: { display: false } },
-        y: { max: 100, ticks: { color: muted, callback: (v) => `${v}%` }, grid: { color: "rgba(255,255,255,.06)" } },
+        y: {
+          max: 100,
+          ticks: {
+            display: false,
+            callback: (v) => `${v}%`,
+          },
+          afterFit(scale) {
+            scale.width = 0;
+          },
+          grid: {
+            color: isLight ? "rgba(0,0,0,.08)" : "rgba(255,255,255,.06)",
+            tickLength: 0,
+          },
+          border: { display: false },
+        },
       },
       plugins: {
-        legend: { labels: { color: text } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -844,6 +1000,7 @@ function renderComparativo() {
         render();
       },
     },
+    plugins: [comparativoBarLabelsPlugin, comparativoStickyYAxisPlugin],
   });
 }
 
@@ -1176,91 +1333,199 @@ function renderRanking(rows) {
   });
 }
 
+function questoesKeyParts(key) {
+  const sep = String(key || "").lastIndexOf(" - ");
+  if (sep === -1) return { escola: escolaBaseNome(key), turma: null };
+  return {
+    escola: escolaBaseNome(key.slice(0, sep)),
+    turma: key.slice(sep + 3),
+  };
+}
+
+function questoesEscopoKeys(source) {
+  if (!state.escola || !source) return [];
+  const base = escolaBaseNome(state.escola);
+  return Object.keys(source).filter((k) => {
+    const { escola, turma } = questoesKeyParts(k);
+    if (escola !== base) return false;
+    if (state.visao === "turmas" && state.turma && state.turma !== "ÚNICA") {
+      return turma === state.turma;
+    }
+    return true;
+  });
+}
+
+/** Agrega % (ponderado por avaliados) e acertos das chaves no escopo. */
+function aggregateQuestoesFromKeys(source, keys, questionList) {
+  const media = {};
+  const acertos = {};
+  if (!keys.length) return { media, acertos };
+
+  if (keys.length === 1) {
+    const entry = source[keys[0]] || {};
+    return {
+      media: { ...(entry.questoes || {}) },
+      acertos: { ...(entry.acertos || {}) },
+    };
+  }
+
+  for (const q of questionList) {
+    let weighted = 0;
+    let totalAval = 0;
+    let totalAcertos = 0;
+    let hasAcertos = false;
+    for (const key of keys) {
+      const entry = source[key];
+      if (!entry) continue;
+      const pct = entry.questoes?.[q];
+      const aval = entry.avaliados || 0;
+      if (pct != null && aval) {
+        weighted += Number(pct) * aval;
+        totalAval += aval;
+      }
+      const ac = entry.acertos?.[q];
+      if (ac != null) {
+        totalAcertos += Number(ac);
+        hasAcertos = true;
+      }
+    }
+    if (totalAval) media[q] = roundHalfUp(weighted / totalAval, 2);
+    if (hasAcertos) acertos[q] = totalAcertos;
+  }
+  return { media, acertos };
+}
+
+function mergeQuestoesLpMat(lpMap, matMap, acLp, acMat, meta) {
+  const maxLen = Math.max(meta.questoesLp.length, meta.questoesMat.length);
+  const out = [];
+  for (let i = 0; i < maxLen; i += 1) {
+    const qLp = meta.questoesLp[i];
+    const qMat = meta.questoesMat[i];
+    if (qLp && lpMap[qLp] != null) {
+      out.push({
+        q: `LP ${qLp.replace("Questão ", "Q")}`,
+        v: lpMap[qLp],
+        acertos: acLp[qLp] ?? null,
+        group: "lp",
+      });
+    }
+    if (qMat && matMap[qMat] != null) {
+      out.push({
+        q: `MAT ${qMat.replace("Questão ", "Q")}`,
+        v: matMap[qMat],
+        acertos: acMat[qMat] ?? null,
+        group: "mat",
+      });
+    }
+  }
+  return out;
+}
+
 function questoesData() {
   if (!periodoTemDados()) return [];
   const bundle = periodoBundle();
   const meta = bundle.meta;
   const isMat = state.disciplina === "mat";
   const isLp = state.disciplina === "lp";
-  const questoes = isMat ? meta.questoesMat : meta.questoesLp;
-  const mediaMap = isMat ? meta.mediaQuestoesMat : meta.mediaQuestoesLp;
-  const acertosMap = isMat ? meta.acertosQuestoesMat : meta.acertosQuestoesLp;
-
-  if (state.escola) {
-    const key = state.visao === "turmas" && state.turma !== "ÚNICA"
-      ? `${state.escola} - ${state.turma}`
-      : state.escola;
-    const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
-    const altKey = Object.keys(source).find((k) => k.startsWith(state.escola));
-    const school = source[key] || source[altKey];
-    if (school?.questoes) {
-      return questoes.map((q) => ({
-        q,
-        v: school.questoes[q] ?? null,
-        acertos: school.acertos?.[q] ?? null,
-      }));
-    }
-  }
 
   if (isMat || isLp) {
+    const questoes = isMat ? meta.questoesMat : meta.questoesLp;
+    const mediaMap = isMat ? meta.mediaQuestoesMat : meta.mediaQuestoesLp;
+    const acertosMap = isMat ? meta.acertosQuestoesMat : meta.acertosQuestoesLp;
+    const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
+
+    if (state.escola) {
+      const keys = questoesEscopoKeys(source);
+      if (keys.length) {
+        const { media, acertos } = aggregateQuestoesFromKeys(source, keys, questoes);
+        return questoes.map((q) => ({
+          q,
+          v: media[q] ?? null,
+          acertos: acertos[q] ?? null,
+          group: isMat ? "mat" : "lp",
+        }));
+      }
+    }
+
     return questoes.map((q) => ({
       q,
       v: mediaMap[q] ?? null,
       acertos: acertosMap?.[q] ?? null,
+      group: isMat ? "mat" : "lp",
     }));
   }
 
-  const lp = meta.mediaQuestoesLp;
-  const mat = meta.mediaQuestoesMat;
-  const acLp = meta.acertosQuestoesLp || {};
-  const acMat = meta.acertosQuestoesMat || {};
-  const maxLen = Math.max(meta.questoesLp.length, meta.questoesMat.length);
-  const out = [];
-  for (let i = 0; i < maxLen; i += 1) {
-    const qLp = meta.questoesLp[i];
-    const qMat = meta.questoesMat[i];
-    if (qLp && lp[qLp] != null) {
-      out.push({ q: `LP ${qLp.replace("Questão ", "Q")}`, v: lp[qLp], acertos: acLp[qLp] ?? null, group: "lp" });
-    }
-    if (qMat && mat[qMat] != null) {
-      out.push({ q: `MAT ${qMat.replace("Questão ", "Q")}`, v: mat[qMat], acertos: acMat[qMat] ?? null, group: "mat" });
-    }
-  }
-  return out;
-}
-
-function questoesAvaliadosTotal() {
-  if (!periodoTemDados()) return 0;
-  const bundle = periodoBundle();
-  const meta = bundle.meta;
-  const isMat = state.disciplina === "mat";
-  const isLp = state.disciplina === "lp";
-  const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
+  // Português + Matemática: sempre LP e MAT intercalados (rede, escola ou turma)
+  let lp = meta.mediaQuestoesLp;
+  let mat = meta.mediaQuestoesMat;
+  let acLp = meta.acertosQuestoesLp || {};
+  let acMat = meta.acertosQuestoesMat || {};
 
   if (state.escola) {
-    const keys = Object.keys(source).filter((k) => {
-      if (state.visao === "turmas" && state.turma && state.turma !== "ÚNICA") {
-        return k === `${state.escola} - ${state.turma}`;
-      }
-      return k === state.escola || k.startsWith(`${state.escola} -`) || k.startsWith(state.escola);
-    });
-    if (keys.length) {
-      if (isLp || isMat) {
-        return keys.reduce((acc, key) => acc + (source[key].avaliados || 0), 0);
-      }
-      const lp = bundle.escolasQuestoesLp;
-      const mat = bundle.escolasQuestoesMat;
-      const lpKeys = Object.keys(lp).filter((k) => k === state.escola || k.startsWith(`${state.escola} -`) || k.startsWith(state.escola));
-      const matKeys = Object.keys(mat).filter((k) => k === state.escola || k.startsWith(`${state.escola} -`) || k.startsWith(state.escola));
-      const avalLp = lpKeys.reduce((acc, key) => acc + (lp[key].avaliados || 0), 0);
-      const avalMat = matKeys.reduce((acc, key) => acc + (mat[key].avaliados || 0), 0);
-      return Math.max(avalLp, avalMat);
+    const lpKeys = questoesEscopoKeys(bundle.escolasQuestoesLp);
+    const matKeys = questoesEscopoKeys(bundle.escolasQuestoesMat);
+    if (lpKeys.length || matKeys.length) {
+      const aggLp = aggregateQuestoesFromKeys(bundle.escolasQuestoesLp, lpKeys, meta.questoesLp);
+      const aggMat = aggregateQuestoesFromKeys(bundle.escolasQuestoesMat, matKeys, meta.questoesMat);
+      lp = aggLp.media;
+      mat = aggMat.media;
+      acLp = aggLp.acertos;
+      acMat = aggMat.acertos;
     }
   }
 
-  if (isLp) return meta.avaliadosLp || 0;
-  if (isMat) return meta.avaliadosMat || 0;
-  return meta.totalAvaliados || 0;
+  return mergeQuestoesLpMat(lp, mat, acLp, acMat, meta);
+}
+
+function sumAvaliadosKeys(source, keys) {
+  return keys.reduce((acc, key) => acc + (source[key]?.avaliados || 0), 0);
+}
+
+/** Avaliados de LP e MAT no escopo atual (rede / escola / turma). */
+function questoesAvaliadosCounts() {
+  if (!periodoTemDados()) return { lp: 0, mat: 0 };
+  const bundle = periodoBundle();
+  const meta = bundle.meta;
+  const lpSource = bundle.escolasQuestoesLp;
+  const matSource = bundle.escolasQuestoesMat;
+
+  if (state.escola) {
+    const lpKeys = questoesEscopoKeys(lpSource);
+    const matKeys = questoesEscopoKeys(matSource);
+    if (lpKeys.length || matKeys.length) {
+      return {
+        lp: sumAvaliadosKeys(lpSource, lpKeys),
+        mat: sumAvaliadosKeys(matSource, matKeys),
+      };
+    }
+  }
+
+  return {
+    lp: meta.avaliadosLp || 0,
+    mat: meta.avaliadosMat || 0,
+  };
+}
+
+function renderQuestoesAvaliadosTab() {
+  const tab = document.getElementById("chartQuestoesAvaliados");
+  const tabValue = tab?.querySelector(".chart-tab-value");
+  const tabLabel = tab?.querySelector(".chart-tab-label");
+  if (!tabValue) return;
+
+  const { lp, mat } = questoesAvaliadosCounts();
+  if (state.disciplina === "geral") {
+    if (tabLabel) tabLabel.textContent = "Alunos avaliados";
+    tabValue.classList.add("chart-tab-value--split");
+    tabValue.innerHTML = `LP <span class="num">${fmt(lp)}</span> · MAT <span class="num">${fmt(mat)}</span>`;
+    tab?.setAttribute("aria-label", `Alunos avaliados: Língua Portuguesa ${fmt(lp)}, Matemática ${fmt(mat)}`);
+    return;
+  }
+
+  tabValue.classList.remove("chart-tab-value--split");
+  if (tabLabel) tabLabel.textContent = "Alunos avaliados";
+  const value = state.disciplina === "lp" ? lp : mat;
+  tabValue.textContent = fmt(value);
+  tab?.setAttribute("aria-label", `Alunos avaliados: ${fmt(value)}`);
 }
 
 function renderQuestoes() {
@@ -1272,8 +1537,16 @@ function renderQuestoes() {
       ? "Desempenho por questão (LP e MAT)"
       : `Desempenho por questão — ${DISCIPLINAS[state.disciplina]}`;
 
-  const tabValue = document.querySelector("#chartQuestoesAvaliados .chart-tab-value");
-  if (tabValue) tabValue.textContent = fmt(questoesAvaliadosTotal());
+  renderQuestoesAvaliadosTab();
+
+  const COR_QUESTAO_LP = "rgba(61, 123, 255, 0.85)";
+  const COR_QUESTAO_MAT = "rgba(0, 230, 118, 0.85)";
+  const corQuestao = (d) => {
+    const group = d.group || (state.disciplina === "mat" ? "mat" : state.disciplina === "lp" ? "lp" : null);
+    if (group === "mat") return COR_QUESTAO_MAT;
+    if (group === "lp") return COR_QUESTAO_LP;
+    return state.disciplina === "mat" ? COR_QUESTAO_MAT : COR_QUESTAO_LP;
+  };
 
   const ctx = document.getElementById("chartQuestoes");
   const labelsVerticais = state.disciplina === "geral";
@@ -1286,9 +1559,7 @@ function renderQuestoes() {
           label: "Acerto %",
           data: data.map((d) => d.v),
           acertos: data.map((d) => d.acertos ?? null),
-          backgroundColor: data.map((d) =>
-            d.group === "mat" ? "rgba(0, 230, 118, 0.85)" : d.group === "lp" ? "rgba(61, 123, 255, 0.85)" : "rgba(123, 97, 255, 0.85)"
-          ),
+          backgroundColor: data.map(corQuestao),
           borderRadius: 6,
         },
       ],
@@ -1367,7 +1638,7 @@ function renderStatusRow(rows) {
   });
   document.getElementById("statusRow").innerHTML = FAIXAS.map(
     (f) => `
-    <article class="status-card ${f.key === "critico" ? "pl" : f.key === "atencao" ? "mid" : f.key === "bom" ? "ini" : "flu"} ${state.faixa === f.key ? "active" : ""}" data-faixa="${f.key}">
+    <article class="status-card ${state.faixa === f.key ? "active" : ""}" data-faixa="${f.key}" style="--status-color:${f.color}">
       <h3>${f.label.split(" (")[0]} <small>${f.label.match(/\(([^)]+)\)/)?.[1] || ""}</small></h3>
       <p class="num">${counts[f.key]}</p>
       <p class="sub">${state.visao === "escolas" ? "escolas" : "turmas"}</p>
@@ -1402,7 +1673,7 @@ function renderTable(rows) {
       const participacao = metrics.previstos ? (metrics.avaliados / metrics.previstos) * 100 : 0;
       return `
       <tr class="clickable" data-escola="${r.escola}" data-turma="${turma === "—" ? "" : turma}">
-        <td><span class="tag" style="--tag:${faixa.color}">${ranking}</span></td>
+        <td><span class="tag tag-ranking" style="--tag:${faixa.color}">${ranking}</span></td>
         <td>${shortSchool(r.escola)}</td>
         <td>${turma}</td>
         <td class="num">${fmt(metrics.previstos)}</td>

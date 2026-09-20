@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -110,21 +110,27 @@
       <div class="chips" id="chips" hidden></div>
 
       <section id="viewDashboard">
-        <div class="layout">
-          <div class="col-left">
+        <div class="layout layout-comparativo">
+          <div class="kpi-strip" id="kpiStrip">
             <div class="stats-col" id="kpiLeft"></div>
             <div class="stats-col" id="kpiRight"></div>
           </div>
 
-          <article class="card chart-card">
-            <div class="card-head">
+          <article class="card chart-card chart-card-full">
+            <div class="card-head card-head-comparativo">
               <div>
                 <h2 id="chartComparativoTitle">Diagnóstica × Percurso × Saída</h2>
                 <p id="chartComparativoSub">Comparativo de médias por unidade escolar</p>
               </div>
+              <ul class="legend compact" id="comparativoLegend" aria-label="Legenda do comparativo"></ul>
             </div>
-            <div class="chart-wrap tall">
-              <canvas id="chartComparativo"></canvas>
+            <div class="chart-wrap tall comparativo">
+              <div class="comparativo-y-axis" id="comparativoYAxis" aria-hidden="true"></div>
+              <div class="chart-comparativo-scroll" id="chartComparativoScroller">
+                <div class="chart-comparativo-inner" id="chartComparativoWrap">
+                  <canvas id="chartComparativo"></canvas>
+                </div>
+              </div>
             </div>
           </article>
         </div>
@@ -234,6 +240,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="dados.js?v=8"></script>
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>

@@ -336,7 +336,11 @@ html[data-theme="light"] .theme-switch-knob {
   font-weight: 700;
 }
 
-.filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
 
 .select {
   background: var(--card);
@@ -403,6 +407,23 @@ html[data-theme="light"] .theme-switch-knob {
   margin-bottom: 16px;
 }
 
+.layout-comparativo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.kpi-strip .stats-col {
+  display: contents;
+}
+
 .col-left {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -417,9 +438,7 @@ html[data-theme="light"] .theme-switch-knob {
 }
 
 .kpi-spacer {
-  visibility: hidden;
-  pointer-events: none;
-  min-height: 108px;
+  display: none;
 }
 
 .card {
@@ -430,33 +449,43 @@ html[data-theme="light"] .theme-switch-knob {
   transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
+.chart-card-full {
+  width: 100%;
+}
+
 .kpi {
-  padding: 16px 18px 18px;
+  padding: 12px 14px 14px;
   transition: 0.2s ease;
   position: relative;
   overflow: hidden;
+  min-height: 0;
+}
+
+.kpi-strip .kpi {
+  padding: 12px 14px 12px;
+  padding-right: 48px;
 }
 
 .kpi[data-nivel] { cursor: pointer; }
 .kpi[data-nivel]:hover { transform: translateY(-2px); background: var(--card-2); }
 .kpi.active { outline: 1px solid var(--blue); }
 
-.kpi-title { color: var(--text); font-size: 13px; font-weight: 500; }
-.kpi-value { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; margin: 8px 0 10px; color: var(--text); }
-.kpi-foot { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 12px; }
+.kpi-title { color: var(--text); font-size: 12px; font-weight: 500; }
+.kpi-value { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; margin: 4px 0 6px; color: var(--text); }
+.kpi-foot { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 11px; }
 
 .kpi.has-icon { padding-right: 56px; }
 .kpi-icon {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
   border-radius: 10px;
   display: grid;
   place-items: center;
 }
-.kpi-icon svg { width: 18px; height: 18px; }
+.kpi-icon svg { width: 16px; height: 16px; }
 .kpi-icon.flu { background: rgba(0, 230, 118, 0.14); color: var(--green); }
 .kpi-icon.ini { background: rgba(0, 200, 255, 0.14); color: var(--iniciante); }
 .kpi-icon.pre { background: rgba(255, 149, 0, 0.16); color: var(--pl2); }
@@ -518,6 +547,19 @@ html[data-theme="light"] .theme-switch-knob {
 .chart-card .card-head > div {
   text-align: center;
 }
+.card-head-comparativo {
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px !important;
+}
+.card-head-comparativo .legend.compact {
+  justify-content: center;
+}
+#comparativoLegend .swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
 .card-head h2 { font-size: 16px; font-weight: 650; color: #ffffff; }
 .card-head p { color: #ffffff; font-size: 12px; margin-top: 3px; }
 
@@ -543,6 +585,49 @@ html[data-theme="light"] .chart-card .card-head p {
 
 .chart-wrap { position: relative; }
 .chart-wrap.tall { height: 360px; }
+.chart-wrap.tall.comparativo {
+  display: flex;
+  height: 440px;
+  overflow: hidden;
+}
+.comparativo-y-axis {
+  position: relative;
+  flex: 0 0 46px;
+  z-index: 2;
+  background: var(--card);
+  pointer-events: none;
+  border-right: 1px solid var(--border);
+}
+.comparativo-y-tick {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: "DM Sans", system-ui, sans-serif;
+  white-space: nowrap;
+  line-height: 1;
+}
+.comparativo-y-tick::after {
+  content: "";
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  width: 5px;
+  height: 1px;
+  background: var(--border);
+}
+.chart-comparativo-scroll {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.chart-comparativo-inner {
+  height: 100%;
+  min-width: 100%;
+}
 .chart-wrap.donut {
   width: 100%;
   max-width: 260px;
@@ -649,15 +734,16 @@ html[data-theme="light"] .chart-card .card-head p {
   border-radius: 16px;
   padding: 16px 18px;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--status-color, var(--border)) 28%, transparent);
+  background: color-mix(in srgb, var(--status-color, var(--soft)) 16%, var(--card));
   transition: 0.2s ease;
 }
 
 .status-card:hover { transform: translateY(-2px); }
-.status-card.active { outline: 2px solid var(--text); }
-.status-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-.status-card h3 small { font-size: 11px; font-weight: 500; opacity: 0.7; }
-.status-card .num { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; }
+.status-card.active { outline: 2px solid var(--status-color, var(--text)); }
+.status-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #000000; }
+.status-card h3 small { font-size: 11px; font-weight: 500; opacity: 0.75; color: inherit; }
+.status-card .num { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; color: #000000; }
 .status-card .num-compare {
   display: flex;
   align-items: baseline;
@@ -665,15 +751,23 @@ html[data-theme="light"] .chart-card .card-head p {
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.04em;
+  color: #000000;
 }
 .status-card .num-compare .ciclo-i { font-size: 22px; opacity: 0.72; }
 .status-card .num-compare .arrow { font-size: 16px; opacity: 0.45; font-weight: 500; }
-.status-card .sub { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+.status-card .sub { font-size: 12px; opacity: 0.85; margin-top: 4px; color: #000000; }
 
-.status-card.pl { background: var(--status-pl); }
-.status-card.mid { background: var(--status-mid); }
-.status-card.ini { background: var(--status-ini); }
-.status-card.flu { background: var(--status-flu); }
+html[data-theme="light"] .status-card {
+  background: color-mix(in srgb, var(--status-color, var(--soft)) 14%, #ffffff);
+}
+
+html[data-theme="dark"] .status-card h3,
+html[data-theme="dark"] .status-card h3 small,
+html[data-theme="dark"] .status-card .num,
+html[data-theme="dark"] .status-card .num-compare,
+html[data-theme="dark"] .status-card .sub {
+  color: #ffffff;
+}
 
 .table-card { padding: 8px 8px 12px; overflow: hidden; }
 
@@ -764,6 +858,7 @@ tbody tr.clickable { cursor: pointer; }
 
 @media (max-width: 1180px) {
   .layout, .layout-bottom, .donut-layout, .status-row { grid-template-columns: 1fr; }
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
   .chart-wrap.escolas { height: 520px; }
   .topbar { grid-template-columns: 1fr auto; }
   .topbar-date { display: none; }
@@ -780,6 +875,8 @@ tbody tr.clickable { cursor: pointer; }
   .hero-title span { white-space: normal; }
   .brand-logo { height: 40px; max-width: 96px; }
   .col-left { grid-template-columns: 1fr; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .chart-wrap.tall.comparativo { height: 380px; }
 }
 
 @media (max-width: 480px) {
@@ -826,6 +923,12 @@ tbody tr.clickable { cursor: pointer; }
   background: color-mix(in srgb, var(--tag) 18%, transparent);
   color: var(--tag);
 }
+.tag-ranking {
+  color: #ffffff;
+}
+html[data-theme="light"] .tag-ranking {
+  color: #000000;
+}
 .layout-bottom.single {
   grid-template-columns: 1fr;
 }
@@ -870,7 +973,7 @@ tbody tr.clickable { cursor: pointer; }
   background: var(--soft);
   border: 1px solid var(--border);
   white-space: nowrap;
-  min-width: 132px;
+  min-width: 148px;
   text-align: center;
 }
 .chart-tab-label {
@@ -886,6 +989,15 @@ tbody tr.clickable { cursor: pointer; }
   color: rgb(0, 0, 0);
   line-height: 1.1;
   text-align: center;
+}
+.chart-tab-value--split {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.chart-tab-value--split .num {
+  font-variant-numeric: tabular-nums;
 }
 html[data-theme="dark"] .chart-tab-label,
 html[data-theme="dark"] .chart-tab-value {
