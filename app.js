@@ -604,7 +604,7 @@ function renderKPIs(rows) {
       value: fmtPct(mediaAtual),
       foot:
         state.disciplina === "geral"
-          ? "média ponderada LP + MAT"
+          ? "média simples LP + MAT"
           : `<span class="num">${fmt(alunosPct(mediaAtual, avalAtual))}</span> alunos`,
       icon: "flu",
     },
@@ -621,13 +621,13 @@ function renderKPIs(rows) {
       {
         title: "Português",
         value: fmtPct(agg.mediaLp),
-        foot: `<span class="num">${fmt(prevLp)}</span> prev · <span class="num">${fmt(avalLp)}</span> aval`,
+        foot: `<span class="num">${fmt(prevLp)}</span> prev · <span class="num">${fmt(avalLp)}</span> avaliados`,
         icon: "ava",
       },
       {
         title: "Matemática",
         value: fmtPct(agg.mediaMat),
-        foot: `<span class="num">${fmt(prevMat)}</span> prev · <span class="num">${fmt(avalMat)}</span> aval`,
+        foot: `<span class="num">${fmt(prevMat)}</span> prev · <span class="num">${fmt(avalMat)}</span> avaliados`,
         icon: "pre",
       }
     );
@@ -658,6 +658,8 @@ function renderKPIs(rows) {
 
   document.getElementById("kpiLeft").innerHTML = html(leftCards);
   document.getElementById("kpiRight").innerHTML = html(rightCards);
+  const kpiStrip = document.getElementById("kpiStrip");
+  if (kpiStrip) kpiStrip.classList.toggle("kpi-strip--geral", state.disciplina === "geral");
 }
 
 function currentTheme() {

@@ -112,8 +112,96 @@ def normalize_aprendizado(value) -> str:
     return str(value or "").strip().upper()
 
 
+def aprendizado_from_proficiencia(score: float, disciplina: str = "lp") -> str:
+    """Classificação de aprendizado sobre a escala SAEB.
+    LP (padrão municipal): ≤149 / 150-199 / 200-249 / ≥250
+    Matemática (faixas da imagem municipal): ≤174 / 175-224 / 225-274 / ≥275
+    """
+    if disciplina == "mat":
+        if score <= 174:
+            return "INSUFICIENTE"
+        if score <= 224:
+            return "BÁSICO"
+        if score <= 274:
+            return "PROFICIENTE"
+        return "AVANÇADO"
+    if score <= 149:
+        return "INSUFICIENTE"
+    if score < 200:
+        return "BÁSICO"
+    if score <= 249:
+        return "PROFICIENTE"
+    return "AVANÇADO"
+
+
+def nivel_from_proficiencia(score: float, disciplina: str = "lp") -> tuple[int, str]:
+    """Faixas SAEB 5º ano: LP até Nível 9; Matemática até Nível 10."""
+    thresholds = [
+        (350, 10),
+        (325, 9),
+        (300, 8),
+        (275, 7),
+        (250, 6),
+        (225, 5),
+        (200, 4),
+        (175, 3),
+        (150, 2),
+        (125, 1),
+    ]
+    if disciplina != "mat":
+        thresholds = [t for t in thresholds if t[1] <= 9]
+    for minimo, numero in thresholds:
+        if score >= minimo:
+            return numero, f"NÍVEL {numero}"
+    return 0, "NÍVEL 0"
+
+
+def scale_for_disciplina(disciplina: str) -> float:
+    """LP mapeia 100% → 325 (N9); Matemática 100% → 350 (N10), conforme SAEB 5º ano."""
+    return 350.0 if disciplina == "mat" else 325.0
+
+
+def build_proficiencia_block(
+    pct_acertos: float | None = None,
+    aprendizado: str | None = None,
+    proficiencia: float | None = None,
+    nivel: int | None = None,
+    nivel_label: str = "",
+    disciplina: str = "lp",
+) -> dict | None:
+    """Monta bloco de proficiência; completa faltantes pela escala SAEB × %."""
+    scale = scale_for_disciplina(disciplina)
+    pct = float(pct_acertos) if isinstance(pct_acertos, (int, float)) else None
+    prof = float(proficiencia) if isinstance(proficiencia, (int, float)) else None
+    if pct is None and prof is None:
+        return None
+    if pct is not None and pct <= 1:
+        pct = pct * 100
+    if prof is None and pct is not None:
+        prof = scale * (pct / 100)
+    if pct is None and prof is not None:
+        pct = (prof / scale) * 100
+    pct = round_half_up(pct, 2)
+    prof = round_half_up(prof, 2)
+    aprend = normalize_aprendizado(aprendizado) if aprendizado else aprendizado_from_proficiencia(prof, disciplina)
+    if nivel is None:
+        nivel, nivel_label = nivel_from_proficiencia(prof, disciplina)
+    elif not nivel_label:
+        nivel_label = f"NÍVEL {nivel}"
+    return {
+        "pctAcertos": pct,
+        "aprendizado": aprend,
+        "proficiencia": prof,
+        "nivel": nivel,
+        "nivelLabel": nivel_label,
+    }
+
+
 def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
     ws = wb[sheet]
+    is_lp = "portug" in sheet.lower()
+    is_mat = "matem" in sheet.lower()
+    disciplina = "mat" if is_mat else "lp"
     questions: list[str] = []
     col = 4
     while col <= ws.max_column:
@@ -124,7 +212,7 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
         else:
             col += 1
 
-    prof_cols = find_proficiencia_cols(ws)
+    prof_cols = find_proficiencia_cols(ws) if (is_lp or is_mat) else {}
     schools: dict[str, dict] = {}
     for row in range(14, ws.max_row + 1):
         name = ws.cell(row, 1).value
@@ -142,30 +230,51 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
                 for index, question in enumerate(questions):
                     quant = ws.cell(row, 4 + index * 2).value
                     pct = ws.cell(row, 5 + index * 2).value
+                    if isinstance(pct, str) and pct.startswith("="):
+                        pct = None
                     if isinstance(pct, (int, float)):
                         # Mantém precisão cheia; arredonda só na média final / exportação.
                         questoes[question] = float(pct)
+                    elif isinstance(quant, (int, float)):
+                        # Planilha regravada sem cache de fórmulas: recalcula % pela quantidade.
+                        base = schools[escola].get("avaliados") or schools[escola].get("previstos") or 0
+                        if base:
+                            questoes[question] = (float(quant) * 100.0) / float(base)
                     if isinstance(quant, (int, float)):
                         acertos[question] = int(quant)
                 schools[escola]["questoes"] = questoes
                 schools[escola]["acertos"] = acertos
+                block = None
                 if prof_cols:
                     pct_raw = ws.cell(row, prof_cols["pctAcertos"]).value if "pctAcertos" in prof_cols else None
                     aprend = ws.cell(row, prof_cols["aprendizado"]).value if "aprendizado" in prof_cols else None
                     prof = ws.cell(row, prof_cols["proficiencia"]).value if "proficiencia" in prof_cols else None
                     nivel_raw = ws.cell(row, prof_cols["nivel"]).value if "nivel" in prof_cols else None
-                    if aprend or isinstance(prof, (int, float)) or nivel_raw is not None:
-                        pct_acertos = None
-                        if isinstance(pct_raw, (int, float)):
-                            pct_acertos = round_half_up(float(pct_raw) * 100 if float(pct_raw) <= 1 else float(pct_raw), 2)
-                        nivel_num, nivel_label = parse_nivel(nivel_raw)
-                        schools[escola]["proficiencia"] = {
-                            "pctAcertos": pct_acertos,
-                            "aprendizado": normalize_aprendizado(aprend) if aprend else "",
-                            "proficiencia": round_half_up(float(prof), 2) if isinstance(prof, (int, float)) else None,
-                            "nivel": nivel_num,
-                            "nivelLabel": nivel_label,
-                        }
+                    # data_only=True pode devolver None se a fórmula Excel ainda não foi cacheada.
+                    if isinstance(aprend, str) and aprend.startswith("="):
+                        aprend = None
+                    if isinstance(prof, str) and str(prof).startswith("="):
+                        prof = None
+                    if isinstance(pct_raw, str) and str(pct_raw).startswith("="):
+                        pct_raw = None
+                    if isinstance(nivel_raw, str) and str(nivel_raw).startswith("="):
+                        nivel_raw = None
+                    nivel_num, nivel_label = parse_nivel(nivel_raw)
+                    block = build_proficiencia_block(
+                        pct_acertos=pct_raw if isinstance(pct_raw, (int, float)) else None,
+                        aprendizado=aprend if aprend else None,
+                        proficiencia=prof if isinstance(prof, (int, float)) else None,
+                        nivel=nivel_num,
+                        nivel_label=nivel_label,
+                        disciplina=disciplina,
+                    )
+                # Sem colunas AY-BB (ou fórmulas sem cache): deriva da média das questões.
+                if block is None and (is_lp or is_mat) and questoes:
+                    media = media_from_questoes(questoes)
+                    if media:
+                        block = build_proficiencia_block(pct_acertos=media, disciplina=disciplina)
+                if block:
+                    schools[escola]["proficiencia"] = block
             continue
         if isinstance(flag, (int, float)) or (isinstance(flag, str) and flag.strip().isdigit()):
             schools[escola] = {
@@ -408,14 +517,32 @@ def classify_periodo(filename: str) -> str | None:
 
 def find_xlsx_by_periodo() -> dict[str, str]:
     found: dict[str, str] = {}
+    candidates: dict[str, list[str]] = {}
     for name in os.listdir(ROOT):
         if not name.lower().endswith(".xlsx"):
+            continue
+        if name.startswith("~$"):
             continue
         periodo = classify_periodo(name)
         if not periodo:
             continue
-        # Prefere o primeiro arquivo encontrado por período.
-        found.setdefault(periodo, os.path.join(ROOT, name))
+        candidates.setdefault(periodo, []).append(os.path.join(ROOT, name))
+    for periodo, paths in candidates.items():
+        # Prefere planilhas com faixas MAT/LP modeladas (aprendizado-mat, fix-falso, com proficiencia).
+        # Em empate, a mais recente. Valores AY–BB sem cache Excel ainda são derivados da média.
+        def preference(path: str) -> tuple:
+            name = os.path.basename(path).lower()
+            score = 0
+            if "aprendizado-mat" in name or "fix-falso" in name:
+                score = 3
+            elif "mat-proficiencia" in name or "com proficiencia" in name:
+                score = 2
+            elif "proficiencia" in name:
+                score = 1
+            return (-score, -os.path.getmtime(path), name)
+
+        preferred = sorted(paths, key=preference)
+        found[periodo] = preferred[0]
     if not found:
         raise FileNotFoundError("Nenhuma planilha .xlsx de período encontrada em DashboardADSE")
     return found
