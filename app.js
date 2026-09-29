@@ -5,6 +5,23 @@ const FAIXAS = [
   { key: "excelente", label: "Avançado (≥ 80%)", color: "#00E676", min: 80, max: 101 },
 ];
 
+const APRENDIZADO = [
+  { key: "INSUFICIENTE", label: "Insuficiente", color: "#FF3B30", short: "Insuf." },
+  { key: "BÁSICO", label: "Básico", color: "#FF9F0A", short: "Básico" },
+  { key: "PROFICIENTE", label: "Proficiente", color: "#3D7BFF", short: "Profic." },
+  { key: "AVANÇADO", label: "Avançado", color: "#30D158", short: "Avanç." },
+];
+
+const NIVEIS_PROF = [
+  { nivel: 0, color: "#FF3B30" },
+  { nivel: 1, color: "#FF6B4A" },
+  { nivel: 2, color: "#FF9F0A" },
+  { nivel: 3, color: "#FFD60A" },
+  { nivel: 4, color: "#5B9AFF" },
+  { nivel: 5, color: "#3D7BFF" },
+  { nivel: 6, color: "#30D158" },
+];
+
 const DISCIPLINAS = {
   geral: "Português + Matemática",
   lp: "Língua Portuguesa",
@@ -22,6 +39,7 @@ const PERIODO_DADOS = "percurso";
 
 const state = {
   view: "dashboard",
+  chartPanel: "comparativo",
   visao: "turmas",
   disciplina: "geral",
   escola: "",
@@ -299,9 +317,51 @@ function setView(view) {
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.view === view);
   });
-  document.getElementById("viewDashboard").hidden = view !== "dashboard";
-  document.getElementById("viewTable").hidden = view !== "table";
+  const dash = document.getElementById("viewDashboard");
+  const table = document.getElementById("viewTable");
+  if (dash) dash.hidden = view !== "dashboard";
+  if (table) table.hidden = view !== "table";
+  const chartNav = document.getElementById("chartNav");
+  if (chartNav) chartNav.hidden = view !== "dashboard";
+  const kpi = document.getElementById("kpiStrip");
+  if (kpi) kpi.hidden = view !== "dashboard";
 }
+
+function setChartPanel(panel) {
+  const allowed = ["comparativo", "faixasRanking", "questoes", "proficiencia"];
+  if (panel === "faixas" || panel === "ranking") panel = "faixasRanking";
+  if (!allowed.includes(panel)) return;
+  state.chartPanel = panel;
+  document.querySelectorAll(".nav-btn[data-chart]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.chart === panel);
+  });
+  document.querySelectorAll(".chart-panel").forEach((el) => {
+    el.hidden = el.dataset.panel !== panel;
+  });
+}
+
+function syncComparativoWidth() {
+  const wrap = document.getElementById("chartComparativoWrap");
+  const scroller = document.getElementById("chartComparativoScroller");
+  if (!wrap || !scroller) return;
+  const labels = charts.comparativo?.data?.labels?.length || 0;
+  const need = Math.max(1, labels) * 88;
+  const avail = scroller.clientWidth || 0;
+  wrap.style.width = "100%";
+  wrap.style.minWidth = `${Math.max(avail, need)}px`;
+}
+
+function resizeVisibleCharts() {
+  requestAnimationFrame(() => {
+    syncComparativoWidth();
+    Object.values(charts).forEach((chart) => {
+      try {
+        chart?.resize?.();
+      } catch (_) {}
+    });
+  });
+}
+
 
 function escolasUnicas() {
   return [...new Set(turmasBase({ escola: true }).map((r) => r.escola))].sort((a, b) =>
@@ -878,9 +938,12 @@ function renderComparativo() {
   }
 
   const wrap = document.getElementById("chartComparativoWrap");
+  const scroller = document.getElementById("chartComparativoScroller");
   if (wrap) {
-    const minPx = Math.max(720, sorted.length * 88);
-    wrap.style.minWidth = `${minPx}px`;
+    const need = Math.max(1, sorted.length) * 88;
+    const avail = scroller?.clientWidth || 0;
+    wrap.style.width = "100%";
+    wrap.style.minWidth = `${Math.max(avail, need)}px`;
   }
 
   const periodoKeys = ["diagnostica", "percurso", "saida"];
@@ -943,7 +1006,7 @@ function renderComparativo() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 56 } },
+      layout: { padding: { top: 56, bottom: 4, left: 0, right: 4 } },
       datasets: {
         bar: {
           barPercentage: 0.98,
@@ -1589,6 +1652,292 @@ function renderQuestoes() {
   });
 }
 
+
+function aprendizadoMeta(key) {
+  const norm = String(key || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return (
+    APRENDIZADO.find((item) => {
+      const itemNorm = item.key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      return itemNorm === norm || item.key === key;
+    }) || { key: key || "-", label: key || "-", color: "#9a9aa3", short: key || "-" }
+  );
+}
+
+function proficienciaSourcePeriodo() {
+  const order = ["diagnostica", state.periodo, ...periodosDisponiveis()];
+  for (const periodo of order) {
+    const bundle = periodoBundle(periodo);
+    const lp = bundle?.proficienciaLp || [];
+    const mat = bundle?.proficienciaMat || [];
+    if (lp.length || mat.length) return { periodo, bundle, lp, mat };
+  }
+  return { periodo: "diagnostica", bundle: periodoBundle("diagnostica"), lp: [], mat: [] };
+}
+
+function proficienciaRows() {
+  const { lp, mat } = proficienciaSourcePeriodo();
+  const rows = state.disciplina === "mat" ? [...mat] : [...lp];
+  const q = state.search.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (state.escola) {
+      const base = escolaBaseNome(state.escola);
+      if (row.escola !== state.escola && row.escola !== base && !String(row.escola).includes(base)) {
+        return false;
+      }
+    }
+    if (state.turma && row.turma !== state.turma) return false;
+    if (q) {
+      const hay = `${row.escola} ${row.turma} ${row.aprendizado} ${row.nivelLabel}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+const proficienciaBarLabelsPlugin = {
+  id: "proficienciaBarLabels",
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta?.data?.length) return;
+    const { ctx } = chart;
+    const dataset = chart.data.datasets[0];
+    const { ink, outside } = chartDefaults();
+    ctx.save();
+    meta.data.forEach((bar, index) => {
+      const value = dataset.data[index];
+      const nivel = dataset.niveis?.[index];
+      const pct = dataset.pcts?.[index];
+      const start = Math.min(bar.x, bar.base);
+      const end = Math.max(bar.x, bar.base);
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = ink;
+      ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
+      ctx.textAlign = "left";
+      if (nivel) ctx.fillText(nivel, start + 10, bar.y);
+      ctx.fillStyle = outside;
+      ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
+      ctx.textAlign = "left";
+      const right = Number(value).toFixed(1).replace(".", ",") + (pct != null ? " · " + fmtPct(pct) : "");
+      ctx.fillText(right, end + 8, bar.y);
+    });
+    ctx.restore();
+  },
+};
+
+function renderProfKpis(rows) {
+  const el = document.getElementById("profKpis");
+  if (!el) return;
+  const total = rows.length || 1;
+  el.innerHTML = APRENDIZADO.map((item) => {
+    const count = rows.filter((r) => aprendizadoMeta(r.aprendizado).key === item.key).length;
+    const pct = ((count / total) * 100).toFixed(0);
+    return '<div class="prof-kpi" style="--prof-color:' + item.color + '">' +
+      '<span class="prof-kpi-label">' + item.label + '</span>' +
+      '<strong class="prof-kpi-value">' + count + '</strong>' +
+      '<span class="prof-kpi-foot">' + pct + '% das turmas</span></div>';
+  }).join("");
+}
+
+function renderProfNiveis(rows) {
+  const el = document.getElementById("profNiveis");
+  if (!el) return;
+  const max = Math.max(1, ...NIVEIS_PROF.map((n) => rows.filter((r) => Number(r.nivel) === n.nivel).length));
+  el.innerHTML = NIVEIS_PROF.map((n) => {
+    const count = rows.filter((r) => Number(r.nivel) === n.nivel).length;
+    const pct = Math.round((count / max) * 100);
+    return '<div class="prof-nivel" style="--nivel-color:' + n.color + '">' +
+      '<div class="prof-nivel-bar"><span style="--nivel-pct:' + pct + '%"></span></div>' +
+      '<span class="prof-nivel-label">N' + n.nivel + '</span>' +
+      '<strong class="prof-nivel-count">' + count + '</strong></div>';
+  }).join("");
+}
+
+function renderAprendizadoDonut(rows) {
+  destroyChart("aprendizado");
+  const counts = Object.fromEntries(APRENDIZADO.map((a) => [a.key, 0]));
+  rows.forEach((row) => {
+    const meta = aprendizadoMeta(row.aprendizado);
+    if (counts[meta.key] != null) counts[meta.key] += 1;
+  });
+  const legend = document.getElementById("aprendizadoLegend");
+  if (legend) {
+    legend.innerHTML = APRENDIZADO.map((a) =>
+      '<li><span class="swatch" style="background:' + a.color + '"></span><span>' +
+      a.label + '</span><b>' + counts[a.key] + '</b></li>'
+    ).join("");
+  }
+  const isLight = currentTheme() === "light";
+  const sliceBorder = isLight ? "#ffffff" : "#18181b";
+  const ctx = document.getElementById("chartAprendizado");
+  if (!ctx) return;
+  charts.aprendizado = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: APRENDIZADO.map((a) => a.label),
+      datasets: [{
+        data: APRENDIZADO.map((a) => counts[a.key]),
+        backgroundColor: APRENDIZADO.map((a) => a.color),
+        hoverBackgroundColor: APRENDIZADO.map((a) => a.color),
+        borderColor: sliceBorder,
+        hoverBorderColor: sliceBorder,
+        borderWidth: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "62%",
+      layout: { padding: 18 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => c.label + ": " + c.raw + " turma" + (c.raw === 1 ? "" : "s"),
+          },
+        },
+      },
+    },
+    plugins: typeof donutSliceLabelsPlugin !== "undefined" ? [donutSliceLabelsPlugin] : [],
+  });
+}
+
+function renderProficienciaBars(rows) {
+  destroyChart("proficiencia");
+  const wrap = document.getElementById("chartProficienciaWrap");
+  const empty = document.getElementById("profEmpty");
+  const canvas = document.getElementById("chartProficiencia");
+  const sorted = [...rows]
+    .filter((r) => r.proficiencia != null)
+    .sort((a, b) => (b.proficiencia || 0) - (a.proficiencia || 0));
+
+  if (!sorted.length) {
+    if (wrap) wrap.hidden = true;
+    if (canvas) canvas.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        state.disciplina === "mat"
+          ? "A planilha Diagnostica ainda nao traz proficiencia para Matematica. Selecione Língua Portuguesa."
+          : "Sem dados de proficiência para o filtro atual.";
+    }
+    return;
+  }
+  if (wrap) wrap.hidden = false;
+  if (canvas) canvas.hidden = false;
+  if (empty) empty.hidden = true;
+
+  const { muted } = chartDefaults();
+  const labels = sorted.map((row) => {
+    const base = shortSchool(row.escola);
+    return row.turma && row.turma !== "ÚNICA" ? base + " — " + row.turma : base;
+  });
+  const colors = sorted.map((row) => aprendizadoMeta(row.aprendizado).color);
+  if (wrap) wrap.style.minHeight = Math.max(420, sorted.length * 28) + "px";
+
+  const legend = document.getElementById("proficienciaLegend");
+  if (legend) {
+    legend.innerHTML = APRENDIZADO.map((a) =>
+      '<li><span class="swatch" style="background:' + a.color + '"></span><span>' + a.short + '</span></li>'
+    ).join("");
+  }
+
+  charts.proficiencia = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Proficiência",
+        data: sorted.map((r) => r.proficiencia),
+        niveis: sorted.map((r) => r.nivelLabel || (r.nivel != null ? "NÍVEL " + r.nivel : "")),
+        pcts: sorted.map((r) => r.pctAcertos),
+        backgroundColor: colors,
+        hoverBackgroundColor: colors,
+        borderRadius: 8,
+        borderSkipped: false,
+        barPercentage: 0.78,
+        categoryPercentage: 0.82,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 88, left: 4, top: 8, bottom: 8 } },
+      scales: {
+        x: {
+          beginAtZero: true,
+          suggestedMax: Math.ceil(Math.max(...sorted.map((r) => r.proficiencia || 0)) / 20) * 20 + 20,
+          ticks: { color: muted, font: { size: 11 } },
+          grid: { color: "rgba(128,128,140,.12)" },
+        },
+        y: {
+          ticks: { color: muted, font: { size: 11 } },
+          grid: { display: false },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const row = sorted[ctx.dataIndex];
+              const aprend = aprendizadoMeta(row.aprendizado).label;
+              const pct = row.pctAcertos != null ? " · " + fmtPct(row.pctAcertos) + " acertos" : "";
+              return Number(ctx.raw).toFixed(1).replace(".", ",") + " pts · " + aprend + pct;
+            },
+          },
+        },
+      },
+      onClick: (_, els) => {
+        if (!els.length) return;
+        const row = sorted[els[0].index];
+        if (!row) return;
+        const same = state.escola === row.escola && (!row.turma || state.turma === row.turma);
+        if (same) {
+          state.escola = "";
+          state.turma = "";
+        } else {
+          state.escola = row.escola;
+          state.turma = row.turma && row.turma !== "ÚNICA" ? row.turma : state.turma;
+          state.visao = "turmas";
+        }
+        state.page = 1;
+        fillSelects();
+        render();
+      },
+    },
+    plugins: [proficienciaBarLabelsPlugin],
+  });
+}
+
+function renderProficiencia() {
+  const source = proficienciaSourcePeriodo();
+  const rows = proficienciaRows();
+  const title = document.getElementById("chartProficienciaTitle");
+  const sub = document.getElementById("chartProficienciaSub");
+  const barsTitle = document.getElementById("chartProfBarsTitle");
+  const barsSub = document.getElementById("chartProfBarsSub");
+  if (title) title.textContent = "Mapa de Proficiência";
+  if (sub) {
+    sub.textContent =
+      (PERIODOS[source.periodo] || source.periodo) +
+      " · Língua Portuguesa · " +
+      rows.length +
+      " turma" +
+      (rows.length === 1 ? "" : "s") +
+      " · escala e níveis da planilha";
+  }
+  if (barsTitle) barsTitle.textContent = "Ranking de proficiência";
+  if (barsSub) barsSub.textContent = "Pontuação · nível · % acertos · clique para filtrar";
+  renderProfKpis(rows);
+  renderProfNiveis(rows);
+  renderAprendizadoDonut(rows);
+  renderProficienciaBars(rows);
+}
+
 function rankingField(row) {
   if (state.disciplina === "lp") return row.rankingLp || row.ranking || "—";
   if (state.disciplina === "mat") return row.rankingMat || row.ranking || "—";
@@ -1735,14 +2084,35 @@ function render() {
   renderChips();
   renderKPIs(rows);
   if (state.view === "dashboard") {
+    setChartPanel(state.chartPanel);
+    const panel = state.chartPanel;
     const { hideTurma, hideEscola } = syncRankingCards();
-    renderComparativo();
-    renderDonut(rows);
-    if (hideTurma) destroyChart("ranking");
-    else renderRanking(rows);
-    if (hideEscola) destroyChart("rankingEscolas");
-    else renderRankingEscolas();
-    renderQuestoes();
+
+    if (panel === "comparativo") renderComparativo();
+    else destroyChart("comparativo");
+
+    if (panel === "faixasRanking") {
+      renderDonut(rows);
+      if (hideTurma) destroyChart("ranking");
+      else renderRanking(rows);
+      if (hideEscola) destroyChart("rankingEscolas");
+      else renderRankingEscolas();
+    } else {
+      destroyChart("donut");
+      destroyChart("ranking");
+      destroyChart("rankingEscolas");
+    }
+
+    if (panel === "questoes") renderQuestoes();
+    else destroyChart("questoes");
+
+    if (panel === "proficiencia") renderProficiencia();
+    else {
+      destroyChart("aprendizado");
+      destroyChart("proficiencia");
+    }
+
+    resizeVisibleCharts();
   } else {
     renderTable(rows);
   }
@@ -1813,7 +2183,18 @@ function bindEvents() {
   });
 
   document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
-    btn.addEventListener("click", () => setView(btn.dataset.view) || render());
+    btn.addEventListener("click", () => {
+      setView(btn.dataset.view);
+      render();
+    });
+  });
+
+  document.querySelectorAll(".nav-btn[data-chart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setView("dashboard");
+      setChartPanel(btn.dataset.chart);
+      render();
+    });
   });
 
   document.getElementById("chips").addEventListener("click", (e) => {
@@ -1872,6 +2253,8 @@ function bindEvents() {
   });
 
   document.getElementById("btnExport").addEventListener("click", () => exportCsv(activeRows()));
+
+  window.addEventListener("resize", () => resizeVisibleCharts());
 }
 
 function init() {

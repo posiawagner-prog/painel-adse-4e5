@@ -53,6 +53,65 @@ def find_sheet(wb, candidates: list[str]) -> str:
     raise KeyError(f"Aba não encontrada: {candidates}")
 
 
+def _norm_header(value) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip().upper())
+    return (
+        text.replace("Ã", "A")
+        .replace("Á", "A")
+        .replace("À", "A")
+        .replace("Â", "A")
+        .replace("É", "E")
+        .replace("Ê", "E")
+        .replace("Í", "I")
+        .replace("Ó", "O")
+        .replace("Ô", "O")
+        .replace("Ú", "U")
+        .replace("Ç", "C")
+    )
+
+
+def find_proficiencia_cols(ws) -> dict[str, int]:
+    """Localiza colunas % ACERTOS / APRENDIZADO / PROFICIÊNCIA / NÍVEL (Diagnóstica LP)."""
+    mapping: dict[str, int] = {}
+    for row in range(12, 16):
+        for col in range(1, ws.max_column + 1):
+            header = _norm_header(ws.cell(row, col).value)
+            if not header:
+                continue
+            if "ACERTO" in header and "pctAcertos" not in mapping:
+                mapping["pctAcertos"] = col
+            elif "APRENDIZADO" in header and "aprendizado" not in mapping:
+                mapping["aprendizado"] = col
+            elif "PROFICI" in header and "proficiencia" not in mapping:
+                mapping["proficiencia"] = col
+            elif header.startswith("NIVEL") and "nivel" not in mapping:
+                mapping["nivel"] = col
+    return mapping
+
+
+def parse_nivel(value) -> tuple[int | None, str]:
+    raw = re.sub(r"\s+", " ", str(value or "").strip())
+    if not raw:
+        return None, ""
+    match = re.search(r"(\d+)", raw)
+    numero = int(match.group(1)) if match else None
+    label = raw if "NIVEL" in _norm_header(raw) or "NÍVEL" in raw.upper() else (f"NÍVEL {numero}" if numero is not None else raw)
+    return numero, label
+
+
+def normalize_aprendizado(value) -> str:
+    key = _norm_header(value)
+    if "INSUF" in key:
+        return "INSUFICIENTE"
+    if "BASICO" in key or "BÁSICO" in str(value or "").upper():
+        return "BÁSICO"
+    if "PROFIC" in key:
+        return "PROFICIENTE"
+    if "AVANC" in key or "AVANÇ" in str(value or "").upper():
+        return "AVANÇADO"
+    return str(value or "").strip().upper()
+
+
 def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
     ws = wb[sheet]
     questions: list[str] = []
@@ -65,6 +124,7 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
         else:
             col += 1
 
+    prof_cols = find_proficiencia_cols(ws)
     schools: dict[str, dict] = {}
     for row in range(14, ws.max_row + 1):
         name = ws.cell(row, 1).value
@@ -89,6 +149,23 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
                         acertos[question] = int(quant)
                 schools[escola]["questoes"] = questoes
                 schools[escola]["acertos"] = acertos
+                if prof_cols:
+                    pct_raw = ws.cell(row, prof_cols["pctAcertos"]).value if "pctAcertos" in prof_cols else None
+                    aprend = ws.cell(row, prof_cols["aprendizado"]).value if "aprendizado" in prof_cols else None
+                    prof = ws.cell(row, prof_cols["proficiencia"]).value if "proficiencia" in prof_cols else None
+                    nivel_raw = ws.cell(row, prof_cols["nivel"]).value if "nivel" in prof_cols else None
+                    if aprend or isinstance(prof, (int, float)) or nivel_raw is not None:
+                        pct_acertos = None
+                        if isinstance(pct_raw, (int, float)):
+                            pct_acertos = round_half_up(float(pct_raw) * 100 if float(pct_raw) <= 1 else float(pct_raw), 2)
+                        nivel_num, nivel_label = parse_nivel(nivel_raw)
+                        schools[escola]["proficiencia"] = {
+                            "pctAcertos": pct_acertos,
+                            "aprendizado": normalize_aprendizado(aprend) if aprend else "",
+                            "proficiencia": round_half_up(float(prof), 2) if isinstance(prof, (int, float)) else None,
+                            "nivel": nivel_num,
+                            "nivelLabel": nivel_label,
+                        }
             continue
         if isinstance(flag, (int, float)) or (isinstance(flag, str) and flag.strip().isdigit()):
             schools[escola] = {
@@ -154,6 +231,32 @@ def assign_ranking(items: list[dict], field: str, target: str) -> None:
         index = end
 
 
+def build_proficiencia_rows(escolas: dict[str, dict], disciplina: str) -> list[dict]:
+    rows: list[dict] = []
+    for key, data in escolas.items():
+        block = data.get("proficiencia")
+        if not block:
+            continue
+        escola, turma = parse_escola_turma(key)
+        rows.append(
+            {
+                "disciplina": disciplina,
+                "escola": escola,
+                "turma": turma,
+                "chave": key,
+                "previstos": data.get("previstos", 0),
+                "avaliados": data.get("avaliados", 0),
+                "pctAcertos": block.get("pctAcertos"),
+                "aprendizado": block.get("aprendizado") or "",
+                "proficiencia": block.get("proficiencia"),
+                "nivel": block.get("nivel"),
+                "nivelLabel": block.get("nivelLabel") or "",
+            }
+        )
+    rows.sort(key=lambda item: (item.get("proficiencia") is None, -(item.get("proficiencia") or 0), item["escola"], item["turma"]))
+    return rows
+
+
 def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> list[dict]:
     keys = sorted(set(escolas_lp) | set(escolas_mat))
     turmas: list[dict] = []
@@ -178,26 +281,29 @@ def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> l
         media_mat = round_half_up(media_from_questoes(mat.get("questoes", {})), 2)
         # Igual ao Excel: média das médias já arredondadas (ex.: 82,19 + 52,68 → 67,44)
         media_geral = round_half_up((media_lp + media_mat) / 2, 2) if media_lp or media_mat else 0.0
-        turmas.append(
-            {
-                "ano": 5,
-                "escola": escola,
-                "turma": turma,
-                "previstos": previstos,
-                "avaliados": avaliados,
-                "participacao": round_half_up(avaliados / previstos * 100, 1) if previstos else 0,
-                "mediaLp": media_lp,
-                "mediaMat": media_mat,
-                "mediaGeral": media_geral,
-                "_mediaLp": media_lp,
-                "_mediaMat": media_mat,
-                "_mediaGeral": media_geral,
-                "previstosLp": prev_lp,
-                "avaliadosLp": aval_lp,
-                "previstosMat": prev_mat,
-                "avaliadosMat": aval_mat,
-            }
-        )
+        row = {
+            "ano": 5,
+            "escola": escola,
+            "turma": turma,
+            "previstos": previstos,
+            "avaliados": avaliados,
+            "participacao": round_half_up(avaliados / previstos * 100, 1) if previstos else 0,
+            "mediaLp": media_lp,
+            "mediaMat": media_mat,
+            "mediaGeral": media_geral,
+            "_mediaLp": media_lp,
+            "_mediaMat": media_mat,
+            "_mediaGeral": media_geral,
+            "previstosLp": prev_lp,
+            "avaliadosLp": aval_lp,
+            "previstosMat": prev_mat,
+            "avaliadosMat": aval_mat,
+        }
+        if lp.get("proficiencia"):
+            row["proficienciaLp"] = lp["proficiencia"]
+        if mat.get("proficiencia"):
+            row["proficienciaMat"] = mat["proficiencia"]
+        turmas.append(row)
 
     assign_ranking(turmas, "mediaGeral", "rankingGeral")
     assign_ranking(turmas, "mediaLp", "rankingLp")
@@ -278,6 +384,8 @@ PERIOD_METRIC_KEYS = (
     "rankingLp",
     "rankingMat",
     "ranking",
+    "proficienciaLp",
+    "proficienciaMat",
 )
 
 PERIOD_LABELS = {
@@ -335,6 +443,8 @@ def build_periodo(fp: str, periodo: str) -> dict:
     total_avaliados = int(round_half_up((total_avaliados_lp + total_avaliados_mat) / 2, 0))
 
     label = PERIOD_LABELS.get(periodo, periodo)
+    proficiencia_lp = build_proficiencia_rows(escolas_lp, "lp")
+    proficiencia_mat = build_proficiencia_rows(escolas_mat, "mat")
     return {
         "meta": {
             "titulo": "Avaliação Diagnóstica do Sistema Estadual — ADSE",
@@ -379,11 +489,14 @@ def build_periodo(fp: str, periodo: str) -> dict:
             "mediaQuestoesMat": avg_questions(questoes_mat, escolas_mat),
             "acertosQuestoesLp": sum_acertos(questoes_lp, escolas_lp),
             "acertosQuestoesMat": sum_acertos(questoes_mat, escolas_mat),
+            "temProficiencia": bool(proficiencia_lp or proficiencia_mat),
         },
         "turmas": turmas,
         "escolas": escolas,
         "escolasQuestoesLp": escolas_lp,
         "escolasQuestoesMat": escolas_mat,
+        "proficienciaLp": proficiencia_lp,
+        "proficienciaMat": proficiencia_mat,
     }
 
 
@@ -438,6 +551,8 @@ def build() -> dict:
             "meta": data["meta"],
             "escolasQuestoesLp": data["escolasQuestoesLp"],
             "escolasQuestoesMat": data["escolasQuestoesMat"],
+            "proficienciaLp": data.get("proficienciaLp", []),
+            "proficienciaMat": data.get("proficienciaMat", []),
         }
         for periodo, data in periodos_data.items()
     }
