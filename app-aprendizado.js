@@ -2338,7 +2338,7 @@ function renderProfNiveis(rows) {
     const apr = aprendizadoFromNivel(n.nivel);
     return (
       "<tr>" +
-      '<td class="niveis-td-nivel"><span class="niveis-pill" style="--nivel-color:' + n.color + '">NÍVEL ' + n.nivel + "</span></td>" +
+      '<td class="niveis-td-nivel"><span class="niveis-pill" style="--nivel-color:' + apr.color + '">NÍVEL ' + n.nivel + "</span></td>" +
       '<td class="niveis-td-turmas"><strong>' + count + "</strong></td>" +
       '<td class="niveis-td-aprend"><span class="niveis-dot" style="background:' + apr.color + '"></span>' + apr.label + "</td>" +
       "</tr>"
