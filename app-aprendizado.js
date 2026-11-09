@@ -2213,7 +2213,8 @@ function proficienciaRows() {
 }
 
 function profScaleAtiva() {
-  return disciplinaProficiencia() === "mat" ? PROF_SCALE_MAT : PROF_SCALE_LP;
+  // Usa o filtro de disciplina direto (mat) — "geral" e "lp" usam escala de Português.
+  return state.disciplina === "mat" ? PROF_SCALE_MAT : PROF_SCALE_LP;
 }
 
 function fmtProfScore(value) {
@@ -2226,9 +2227,14 @@ function renderProfScaleLegend() {
   const el = document.getElementById("profScaleLegend");
   if (!el) return;
   const ano = state.ano || anoPadrao();
-  const disc = disciplinaProficiencia() === "mat" ? "Matemática" : "Língua Portuguesa";
+  const isMat = state.disciplina === "mat";
+  const disc = isMat ? "Matemática" : "Língua Portuguesa";
+  const escala = isMat ? "escala 350 · níveis 0–10" : "escala 325 · níveis 0–9";
+  const bands = profScaleAtiva();
+  el.hidden = false;
+  el.dataset.disciplina = isMat ? "mat" : "lp";
   el.setAttribute("aria-label", `Escala de proficiência — ${ano}º ano · ${disc}`);
-  el.innerHTML = profScaleAtiva()
+  const groupsHtml = bands
     .map(
       (group) =>
         `<div class="prof-scale-group" data-band="${group.band}">` +
@@ -2244,6 +2250,9 @@ function renderProfScaleLegend() {
         `</ul></div>`
     )
     .join("");
+  el.innerHTML =
+    `<div class="prof-scale-caption"><strong>${ano}º ano · ${disc}</strong><span>${escala}</span></div>` +
+    `<div class="prof-scale-bands">${groupsHtml}</div>`;
 }
 
 const proficienciaBarLabelsPlugin = {
@@ -2391,10 +2400,12 @@ function renderProficienciaBars(rows) {
     .filter((r) => r.proficiencia != null)
     .sort((a, b) => (b.proficiencia || 0) - (a.proficiencia || 0));
 
+  // Legenda SAEB acompanha o filtro (LP ≠ MAT), mesmo sem barras.
+  renderProfScaleLegend();
+
   if (!sorted.length) {
     if (wrap) wrap.hidden = true;
     if (canvas) canvas.hidden = true;
-    if (scaleLegend) scaleLegend.hidden = true;
     if (empty) {
       empty.hidden = false;
       empty.textContent =
@@ -2406,10 +2417,6 @@ function renderProficienciaBars(rows) {
   }
   if (wrap) wrap.hidden = false;
   if (canvas) canvas.hidden = false;
-  if (scaleLegend) {
-    scaleLegend.hidden = false;
-    renderProfScaleLegend();
-  }
   if (empty) empty.hidden = true;
 
   const { muted } = chartDefaults();
@@ -2528,7 +2535,14 @@ function renderProficiencia() {
       escala;
   }
   if (barsTitle) barsTitle.textContent = "Ranking de proficiência";
-  if (barsSub) barsSub.textContent = "Pontuação · nível · % acertos · clique para filtrar";
+  if (barsSub) {
+    barsSub.textContent =
+      state.disciplina === "mat"
+        ? "Matemática · pontuação · nível · % acertos · clique para filtrar"
+        : "Língua Portuguesa · pontuação · nível · % acertos · clique para filtrar";
+  }
+  // Atualiza a legenda SAEB sempre que o filtro de disciplina/ano muda.
+  renderProfScaleLegend();
   renderProfNiveis(rows);
   renderAprendizadoDonut(rows);
   renderProficienciaBars(rows);
