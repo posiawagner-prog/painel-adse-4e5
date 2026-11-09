@@ -2005,10 +2005,10 @@ function fmtPctLegenda(pct) {
  */
 function buildQuestoesLegendRanges(disciplina) {
   const cores = {
-    insuficiente: "#FF3B30",
-    basico: "#FF9500",
-    proficiente: "#FFD60A",
-    avancado: "#00E676",
+    insuficiente: COR_APREND.insuficiente,
+    basico: COR_APREND.basico,
+    proficiente: COR_APREND.proficiente,
+    avancado: COR_APREND.avancado,
   };
   const scale = disciplina === "mat" ? 350 : 325;
   const round2 = (n) => Math.round(n * 100) / 100;
