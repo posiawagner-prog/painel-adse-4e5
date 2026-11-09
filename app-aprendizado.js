@@ -2266,6 +2266,8 @@ function renderProfScaleLegend() {
     `<div class="prof-scale-bands">${groupsHtml}</div>`;
 }
 
+const PROF_INK = "#000000";
+
 const proficienciaBarLabelsPlugin = {
   id: "proficienciaBarLabels",
   afterDatasetsDraw(chart) {
@@ -2273,7 +2275,6 @@ const proficienciaBarLabelsPlugin = {
     if (!meta?.data?.length) return;
     const { ctx } = chart;
     const dataset = chart.data.datasets[0];
-    const { outside } = chartDefaults();
     ctx.save();
     meta.data.forEach((bar, index) => {
       const value = dataset.data[index];
@@ -2286,10 +2287,10 @@ const proficienciaBarLabelsPlugin = {
       const pctText = pct != null ? fmtPct(pct) : "";
 
       ctx.textBaseline = "middle";
+      ctx.fillStyle = PROF_INK;
 
-      // Nível à esquerda dentro da barra (texto escuro sobre a cor)
+      // Nível à esquerda dentro da barra
       if (nivel && width > 70) {
-        ctx.fillStyle = "#141418";
         ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
         ctx.textAlign = "left";
         ctx.fillText(nivel, start + 10, bar.y);
@@ -2297,7 +2298,6 @@ const proficienciaBarLabelsPlugin = {
 
       // Pontuação à direita dentro da barra
       if (width > 48) {
-        ctx.fillStyle = "#ffffff";
         ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
         ctx.textAlign = "right";
         ctx.fillText(profText, end - 8, bar.y);
@@ -2305,7 +2305,6 @@ const proficienciaBarLabelsPlugin = {
 
       // % de acertos fora da barra
       if (pctText) {
-        ctx.fillStyle = outside;
         ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
         ctx.textAlign = "left";
         ctx.fillText(pctText, end + 8, bar.y);
@@ -2430,7 +2429,6 @@ function renderProficienciaBars(rows) {
   if (canvas) canvas.hidden = false;
   if (empty) empty.hidden = true;
 
-  const { muted } = chartDefaults();
   const labels = sorted.map((row) => {
     const base = shortSchool(row.escola);
     return row.turma && row.turma !== "ÚNICA" ? base + " — " + row.turma : base;
@@ -2471,11 +2469,11 @@ function renderProficienciaBars(rows) {
         x: {
           beginAtZero: true,
           suggestedMax: Math.ceil(Math.max(...sorted.map((r) => r.proficiencia || 0)) / 20) * 20 + 20,
-          ticks: { color: muted, font: { size: 11 } },
+          ticks: { color: PROF_INK, font: { size: 11, weight: "600" } },
           grid: { color: "rgba(128,128,140,.12)" },
         },
         y: {
-          ticks: { color: muted, font: { size: 11 } },
+          ticks: { color: PROF_INK, font: { size: 11, weight: "600" } },
           grid: { display: false },
         },
       },
