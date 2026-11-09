@@ -2,6 +2,11 @@
 ~$*
 *.tmp
 
+# Planilhas-fonte (os dados já vão em dados.js)
+*.xlsx
+*.xls
+*.pdf
+
 # OS / editor
 Thumbs.db
 Desktop.ini
@@ -12,3 +17,7 @@ Desktop.ini
 # Python
 __pycache__/
 *.pyc
+
+# Misc
+banner_semed.png
+*.bak

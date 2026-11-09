@@ -2,12 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ADSE — Painel 5º Ano (Aprendizado)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0c0d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Painel ADSE de aprendizado — 4º e 5º anos · Diagnóstica, Percurso e Saída (LP e Matemática)." />
+  <title>ADSE — Painel de Aprendizado</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=117" />
+  <link rel="stylesheet" href="styles.css?v=124" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -67,12 +72,23 @@
 
   <div class="app">
     <header class="topbar">
-      <label class="search">
-        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <input id="searchInput" type="search" placeholder="Buscar escola ou turma..." autocomplete="off" />
-      </label>
+      <div class="topbar-search">
+        <label class="search">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input id="searchInput" type="search" placeholder="Buscar escola ou turma..." autocomplete="off" />
+        </label>
+        <p class="topbar-hello">Olá, Wagner!</p>
+      </div>
       <div class="topbar-date" id="todayLabel"></div>
       <div class="topbar-actions">
+        <button type="button" class="icon-btn" id="btnFullscreen" title="Tela cheia (Esc para sair)" aria-pressed="false" aria-label="Entrar em tela cheia">
+          <svg class="fs-icon-expand" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 3H4v4M16 3h4v4M8 21H4v-4M16 21h4v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="fs-icon-compress" viewBox="0 0 24 24" fill="none" aria-hidden="true" hidden>
+            <path d="M9 3v4H5M15 3v4h4M9 21v-4H5M15 21v-4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button type="button" class="theme-switch" id="btnTheme" role="switch" aria-checked="false" aria-label="Ativar modo claro" title="Modo escuro">
           <span class="theme-switch-track"><span class="theme-switch-knob"></span></span>
         </button>
@@ -87,12 +103,10 @@
       <div class="hero-greet">
         <div class="brand-block">
           <img class="brand-logo" src="assets/logo-prefeitura.png" alt="Prefeitura de São José da Tapera" />
-          <p class="hero-hello">Olá, Wagner!</p>
         </div>
         <div class="hero-title-block">
           <h2 class="hero-title">
             <span>Avaliação de Desempenho da Secretaria de Educação - ADSE</span>
-            <span>5º ANO</span>
             <span>Língua Portuguesa e Matemática</span>
           </h2>
           <p>Clique nos gráficos para filtrar o painel.</p>
@@ -100,6 +114,13 @@
         <img class="brand-logo" src="assets/logo-semed.png" alt="SEMED - Secretaria Municipal de Educação" />
       </div>
       <div class="filters" id="filterBar">
+        <label class="select">
+          <span>Ano</span>
+          <select id="filterAno">
+            <option value="5">5º ano</option>
+            <option value="4">4º ano</option>
+          </select>
+        </label>
         <label class="select">
           <span>Visão</span>
           <select id="filterVisao">
@@ -221,8 +242,11 @@
                 <strong class="chart-tab-value">0</strong>
               </div>
             </div>
-            <div class="questoes-layout">
-              <ul class="legend questoes-legend" id="questoesLegend" aria-label="Legenda de faixas de desempenho"></ul>
+            <div class="questoes-layout" id="questoesLayout">
+              <aside class="questoes-legend-panel" id="questoesLegendPanel" hidden>
+                <span class="questoes-legend-caption">Faixas</span>
+                <ul class="questoes-legend" id="questoesLegend" aria-label="Faixas de desempenho em Português"></ul>
+              </aside>
               <div class="chart-wrap tall">
                 <canvas id="chartQuestoes"></canvas>
               </div>
@@ -333,6 +357,7 @@
       </div>
       <footer class="print-preview-actions">
         <button type="button" class="btn" data-close-preview>Cancelar</button>
+        <button type="button" class="btn" id="btnDownloadJpg">Gerar em JPG</button>
         <button type="button" class="btn" id="btnDownloadPdf">Baixar PDF</button>
         <button type="button" class="btn btn-primary" id="btnConfirmPrint">Imprimir</button>
       </footer>
@@ -342,7 +367,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="dados.js?v=10"></script>
-  <script src="app-aprendizado.js?v=12"></script>
+  <script src="dados.js?v=13"></script>
+  <script src="app-aprendizado.js?v=26"></script>
 </body>
 </html>

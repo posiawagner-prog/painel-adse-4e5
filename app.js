@@ -37,6 +37,23 @@ const PERIODOS = {
 /** Fallback quando meta não declara o período padrão. */
 const PERIODO_DADOS = "percurso";
 
+function anosDisponiveis() {
+  const list = DADOS.meta?.anosDisponiveis;
+  if (Array.isArray(list) && list.length) return list.map(Number);
+  if (DADOS.byAno) return Object.keys(DADOS.byAno).map(Number).sort((a, b) => a - b);
+  return [Number(DADOS.meta?.ano || 5)];
+}
+
+function anoPadrao() {
+  return Number(DADOS.meta?.anoPadrao || DADOS.meta?.ano || anosDisponiveis()[0] || 5);
+}
+
+function dadosAno(ano = state.ano) {
+  const bloco = DADOS.byAno?.[String(ano)];
+  if (bloco) return bloco;
+  return DADOS;
+}
+
 const state = {
   view: "dashboard",
   chartPanel: "comparativo",
@@ -44,6 +61,7 @@ const state = {
   disciplina: "geral",
   escola: "",
   turma: "",
+  ano: anoPadrao(),
   periodo: "percurso",
   faixa: "",
   search: "",
@@ -53,27 +71,35 @@ const state = {
 };
 
 function periodoPadrao() {
-  return DADOS.meta?.periodoPadrao || DADOS.meta?.periodo || PERIODO_DADOS;
+  const meta = dadosAno().meta || DADOS.meta;
+  return meta?.periodoPadrao || meta?.periodo || PERIODO_DADOS;
 }
 
 function periodosDisponiveis() {
-  return DADOS.meta?.periodosDisponiveis || Object.keys(DADOS.byPeriodo || {}) || [periodoPadrao()];
+  const pack = dadosAno();
+  return pack.meta?.periodosDisponiveis || Object.keys(pack.byPeriodo || {}) || [periodoPadrao()];
 }
 
 function periodoBundle(periodo = state.periodo) {
-  if (DADOS.byPeriodo?.[periodo]) return DADOS.byPeriodo[periodo];
+  const pack = dadosAno();
+  if (pack.byPeriodo?.[periodo]) return pack.byPeriodo[periodo];
   if (periodo === periodoPadrao()) {
     return {
-      meta: DADOS.meta,
-      escolasQuestoesLp: DADOS.escolasQuestoesLp,
-      escolasQuestoesMat: DADOS.escolasQuestoesMat,
+      meta: pack.meta,
+      escolasQuestoesLp: pack.escolasQuestoesLp,
+      escolasQuestoesMat: pack.escolasQuestoesMat,
     };
   }
   return null;
 }
 
 function metaAtivo() {
-  return periodoBundle()?.meta || DADOS.meta;
+  return periodoBundle()?.meta || dadosAno().meta || DADOS.meta;
+}
+
+function syncAnoTitle() {
+  const ano = state.ano || anoPadrao();
+  document.title = `ADSE — Painel ${ano}º Ano`;
 }
 
 function expandPeriodo(row, periodo = state.periodo) {
@@ -172,7 +198,7 @@ function periodoTemDados(periodo = state.periodo) {
 function turmasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
   if (!exclude.periodo && !periodoTemDados()) return [];
-  return DADOS.turmas
+  return dadosAno().turmas
     .map((row) => {
       const active = expandPeriodo(row, state.periodo);
       if (active) return active;
@@ -196,7 +222,7 @@ function turmasBase(exclude = {}) {
 function escolasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
   if (!exclude.periodo && !periodoTemDados()) return [];
-  return DADOS.escolas
+  return dadosAno().escolas
     .map((row) => {
       const active = expandPeriodo(row, state.periodo);
       if (active) return active;
@@ -448,6 +474,13 @@ function fillSelects() {
     `<option value="escolas">${optionLabel("Por escola", `${escolasCount} escolas`)}</option>`,
   ].join("");
 
+  const anoSelect = document.getElementById("filterAno");
+  if (anoSelect) {
+    anoSelect.innerHTML = anosDisponiveis()
+      .map((ano) => `<option value="${ano}">${ano}º ano</option>`)
+      .join("");
+  }
+
   const periodoSelect = document.getElementById("filterPeriodo");
   if (periodoSelect) {
     const order = ["diagnostica", "percurso", "saida"];
@@ -526,14 +559,23 @@ function fillSelects() {
 }
 
 function syncSelects() {
-  ["filterVisao", "filterDisciplina", "filterEscola", "filterTurma", "filterPeriodo"].forEach((id) => {
+  ["filterAno", "filterVisao", "filterDisciplina", "filterEscola", "filterTurma", "filterPeriodo"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     const key = id.replace("filter", "").toLowerCase();
     el.value =
       state[key] ||
-      (id === "filterDisciplina" ? "geral" : id === "filterVisao" ? "turmas" : id === "filterPeriodo" ? periodoPadrao() : "");
+      (id === "filterDisciplina"
+        ? "geral"
+        : id === "filterVisao"
+          ? "turmas"
+          : id === "filterPeriodo"
+            ? periodoPadrao()
+            : id === "filterAno"
+              ? String(anoPadrao())
+              : "");
   });
+  syncAnoTitle();
 }
 
 function renderChips() {
@@ -543,6 +585,9 @@ function renderChips() {
   if (state.disciplina !== "geral") items.push({ key: "disciplina", label: DISCIPLINAS[state.disciplina] });
   if (state.escola) items.push({ key: "escola", label: shortSchool(state.escola) });
   if (state.turma) items.push({ key: "turma", label: `Turma ${state.turma}` });
+  if (state.ano && state.ano !== anoPadrao()) {
+    items.push({ key: "ano", label: `Ano: ${state.ano}º` });
+  }
   if (state.periodo && state.periodo !== periodoPadrao()) {
     items.push({ key: "periodo", label: `Período: ${PERIODOS[state.periodo] || state.periodo}` });
   }
@@ -2005,7 +2050,7 @@ function renderTable(rows) {
 
   document.getElementById("tableCount").textContent = `${sorted.length} ${state.visao === "escolas" ? "escolas" : "turmas"}`;
   const scope = document.getElementById("tableScope");
-  if (scope) scope.textContent = ` · ${DISCIPLINAS[state.disciplina]} · 5º ano`;
+  if (scope) scope.textContent = ` · ${DISCIPLINAS[state.disciplina]} · ${state.ano || anoPadrao()}º ano`;
   document.getElementById("pageInfo").textContent = `${state.page} de ${totalPages}`;
 
   document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -2063,7 +2108,7 @@ function exportCsv(rows) {
   const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "adse-5ano-ranking.csv";
+  a.download = `adse-${state.ano || anoPadrao()}ano-ranking.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -2156,8 +2201,19 @@ function bindEvents() {
     render();
   });
 
-  document.getElementById("filterPeriodo").addEventListener("change", (e) => {
+  document.getElementById("filterPeriodo")?.addEventListener("change", (e) => {
     state.periodo = e.target.value;
+    state.page = 1;
+    fillSelects();
+    render();
+  });
+
+  document.getElementById("filterAno")?.addEventListener("change", (e) => {
+    state.ano = Number(e.target.value) || anoPadrao();
+    state.escola = "";
+    state.turma = "";
+    state.faixa = "";
+    state.periodo = periodoPadrao();
     state.page = 1;
     fillSelects();
     render();
@@ -2174,6 +2230,7 @@ function bindEvents() {
       disciplina: "geral",
       escola: "",
       turma: "",
+      ano: anoPadrao(),
       periodo: periodoPadrao(),
       faixa: "",
       search: "",
@@ -2206,7 +2263,12 @@ function bindEvents() {
     if (key === "visao") state.visao = "turmas";
     else if (key === "disciplina") state.disciplina = "geral";
     else if (key === "periodo") state.periodo = periodoPadrao();
-    else state[key] = "";
+    else if (key === "ano") {
+      state.ano = anoPadrao();
+      state.escola = "";
+      state.turma = "";
+      state.periodo = periodoPadrao();
+    } else state[key] = "";
     state.page = 1;
     fillSelects();
     render();
@@ -2260,7 +2322,9 @@ function bindEvents() {
 }
 
 function init() {
+  state.ano = anoPadrao();
   state.periodo = periodoPadrao();
+  syncAnoTitle();
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "numeric",

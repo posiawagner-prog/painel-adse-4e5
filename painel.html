@@ -2,12 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ADSE — Painel 5º Ano</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0c0d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Painel ADSE de acompanhamento — 4º e 5º anos · Diagnóstica, Percurso e Saída." />
+  <title>ADSE — Painel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=117" />
+  <link rel="stylesheet" href="styles.css?v=124" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -92,7 +96,6 @@
         <div class="hero-title-block">
           <h2 class="hero-title">
             <span>Avaliação de Desempenho da Secretaria de Educação - ADSE</span>
-            <span>5º ANO</span>
             <span>Língua Portuguesa e Matemática</span>
           </h2>
           <p>Clique nos gráficos para filtrar o painel.</p>
@@ -100,6 +103,13 @@
         <img class="brand-logo" src="assets/logo-semed.png" alt="SEMED - Secretaria Municipal de Educação" />
       </div>
       <div class="filters" id="filterBar">
+        <label class="select">
+          <span>Ano</span>
+          <select id="filterAno">
+            <option value="5">5º ano</option>
+            <option value="4">4º ano</option>
+          </select>
+        </label>
         <label class="select">
           <span>Visão</span>
           <select id="filterVisao">
@@ -343,7 +353,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="dados.js?v=9"></script>
-  <script src="app.js?v=94"></script>
+  <script src="dados.js?v=13"></script>
+  <script src="app.js?v=95"></script>
 </body>
 </html>

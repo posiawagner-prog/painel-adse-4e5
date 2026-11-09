@@ -1,6 +1,6 @@
 /**
  * Faixas = coluna APRENDIZADO sobre PROFICIÊNCIA (BA).
- * LP:  =SE(BA<=149;"INSUFICIENTE";SE(E(BA>=150;BA<200);"BÁSICO";SE(E(BA>=200;BA<=249);"PROFICIENTE";SE(BA>=250;"AVANÇADO"))))
+ * LP:  =SE(BA<=149;"INSUFICIENTE";SE(BA<200;"BÁSICO";SE(BA<250;"PROFICIENTE";"AVANÇADO")))
  * MAT: =SE(BA<=174;"INSUFICIENTE";SE(BA<=224;"BÁSICO";SE(BA<=274;"PROFICIENTE";"AVANÇADO")))  (escala 350)
  */
 const FAIXAS_LP = [
@@ -26,6 +26,91 @@ const APRENDIZADO = [
   { key: "PROFICIENTE", label: "Proficiente", color: "#3D7BFF", short: "Profic." },
   { key: "AVANÇADO", label: "Avançado", color: "#30D158", short: "Avanç." },
 ];
+
+/**
+ * Descritores da Avaliação de Saída (planilha Descritores_Avaliacao_4e5Ano_LP_MAT.xlsx).
+ * Índice 0 = Questão 01 da disciplina no ranking (ordem do caderno LP/MAT).
+ * Tooltip: título "D1 - H2 - N1" | corpo = descrição D + descrição H.
+ */
+const DESCRITORES_LP = [
+  { d: "D1", h: "H2", n: "N1", descD: "Localizar informações explícitas em um texto", descH: "Localizar informação explícita" },
+  { d: "D3", h: "H13", n: "N1", descD: "Inferir o sentido de uma palavra ou expressão", descH: "Inferir o sentido de palavras ou expressões em textos" },
+  { d: "D6", h: "H1", n: "N1", descD: "Identificar o tema de um texto", descH: "Identificar a ideia central do texto" },
+  { d: "D11", h: "H10", n: "N2", descD: "Distinguir um fato da opinião relativa a esse fato", descH: "Distinguir fatos de opiniões em textos" },
+  { d: "D4", h: "H12", n: "N2", descD: "Inferir uma informação implícita em um texto", descH: "Inferir informações implícitas em textos" },
+  { d: "D5", h: "H11", n: "N2", descD: "Interpretar texto com auxílio de material gráfico diverso (propagandas, quadrinhos, foto etc.)", descH: "Analisar informações apresentadas em gráficos, infográficos ou tabelas" },
+  { d: "D9", h: "H3", n: "N3", descD: "Identificar a finalidade de textos de diferentes gêneros", descH: "Reconhecer diferentes gêneros textuais" },
+  { d: "D7", h: "H4", n: "N3", descD: "Identificar o conflito gerador do enredo e os elementos que constroem a narrativa", descH: "Identificar elementos constitutivos de textos narrativos" },
+  { d: "D9", h: "H5", n: "N3", descD: "Identificar a finalidade de textos de diferentes gêneros", descH: "Reconhecer diferentes modos de organização composicional de textos em versos" },
+  { d: "D7", h: "H6", n: "N4", descD: "Identificar o conflito gerador do enredo e os elementos que constroem a narrativa", descH: "Identificar as marcas de organização de textos dramáticos" },
+  { d: "D8", h: "H8", n: "N4", descD: "Estabelecer relação causa/consequência entre partes e elementos do texto", descH: "Analisar relações de causa e consequência" },
+  { d: "D13", h: "H14", n: "N4", descD: "Identificar efeitos de ironia ou humor em textos variados", descH: "Analisar os efeitos de sentido de recursos multissemióticos em textos" },
+  { d: "D2", h: "H21", n: "N5", descD: "Estabelecer relações entre partes de um texto, identificando repetições ou substituições que contribuem para a continuidade", descH: "Identificar os mecanismos de referenciação lexical e pronominal" },
+  { d: "D12", h: "H25", n: "N5", descD: "Estabelecer relações lógico-discursivas presentes no texto, marcadas por conjunções, advérbios etc.", descH: "Analisar os efeitos de sentido decorrentes do uso dos advérbios" },
+  { d: "D14", h: "H17/H22", n: "N5", descD: "Identificar o efeito de sentido decorrente do uso da pontuação e de outras notações", descH: "Reconhecer e analisar os efeitos de sentido da pontuação" },
+  { d: "D5", h: "H9", n: "N6", descD: "Interpretar texto com auxílio de material gráfico diverso (propagandas, quadrinhos, foto etc.)", descH: "Analisar o uso de recursos de persuasão em textos verbais e/ou multimodais" },
+  { d: "D9", h: "H7", n: "N6", descD: "Identificar a finalidade de textos de diferentes gêneros", descH: "Analisar elementos constitutivos de gêneros textuais diversos" },
+  { d: "D15", h: "H16", n: "N6", descD: "Reconhecer diferentes formas de tratar uma informação na comparação de textos sobre o mesmo tema", descH: "Avaliar a fidedignidade de informações sobre um mesmo fato em diferentes mídias" },
+  { d: "EF01LP05", h: null, n: null, descD: "Escrever o próprio nome completo em letra cursiva", descH: null },
+  { d: "EF01LP05", h: null, n: null, descD: "Escrever o nome completo da escola em letra cursiva", descH: null },
+];
+
+const DESCRITORES_MAT = [
+  { d: "D13/D15", h: "5N1.2", n: "N1", descD: "Identificar a ordem ocupada por um algarismo ou seu valor posicional em um número natural de até 6 ordens", descH: null },
+  { d: "D15", h: "5N1.4", n: "N1", descD: "Compor ou decompor números naturais de até 6 ordens na forma aditiva, em ordens, ou em adições e multiplicações", descH: null },
+  { d: "D17", h: "5N1.5", n: "N1", descD: "Calcular o resultado de adições ou subtrações envolvendo números naturais de até 6 ordens", descH: null },
+  { d: "D18", h: "5N1.6", n: "N1", descD: "Calcular o resultado de multiplicações ou divisões envolvendo números naturais de até 6 ordens", descH: null },
+  { d: "D24", h: "5N1.8", n: "N2", descD: "Representar frações menores ou maiores que a unidade ou associar frações a representações pictóricas", descH: null },
+  { d: "D24", h: "5N1.9", n: "N2", descD: "Identificar frações equivalentes", descH: null },
+  { d: "D19", h: "5N2.1", n: "N2", descD: "Resolver problemas de adição ou subtração com números naturais (juntar, acrescentar, separar, retirar, comparar ou completar)", descH: null },
+  { d: "D20", h: "5N2.2", n: "N3", descD: "Resolver problemas de multiplicação ou divisão com números naturais (grupos iguais, proporcionalidade ou disposição retangular)", descH: null },
+  { d: "D26", h: "5N2.7", n: "N3", descD: "Resolver problemas com 10%, 25%, 50%, 75% e 100%", descH: null },
+  { d: "D14", h: "5A1.3", n: "N3", descD: "Inferir elementos ausentes em uma sequência de números naturais, objetos e figuras", descH: null },
+  { d: "D17/D19", h: "5A1.4", n: "N3", descD: "Comparar diferentes sentenças de adições ou subtrações de dois números naturais", descH: null },
+  { d: "D20", h: "5A2.2", n: "N4", descD: "Resolver problemas que envolvam a partilha de uma quantidade em duas partes proporcionais", descH: null },
+  { d: "D1", h: "5G1.1", n: "N4", descD: "Identificar localização ou deslocamento de pessoas/objetos em representações bidimensionais (mapas, croquis etc.)", descH: null },
+  { d: "D2", h: "5G1.3", n: "N4", descD: "Reconhecer/nomear figuras geométricas espaciais (prismas, pirâmides, cilindros, cones ou esferas)", descH: null },
+  { d: "D2", h: "5G1.4", n: "N4", descD: "Reconhecer/nomear, contar ou comparar elementos de figuras geométricas espaciais (vértice, aresta, face, base)", descH: null },
+  { d: "D2", h: "5G1.6", n: "N5", descD: "Reconhecer/nomear figuras geométricas planas (polígonos, circunferência ou círculo)", descH: null },
+  { d: "D6", h: "5M1.1", n: "N5", descD: "Reconhecer a unidade de medida ou o instrumento mais apropriado (comprimento, área, massa, tempo, capacidade ou temperatura)", descH: null },
+  { d: "D8", h: "5M1.5", n: "N5", descD: "Identificar horas em relógios analógicos ou associar analógico e digital", descH: null },
+  { d: "D23", h: "5M2.6", n: "N5", descD: "Resolver problemas com moedas e/ou cédulas do sistema monetário brasileiro", descH: null },
+  { d: "D27", h: "5E1.2", n: "N6", descD: "Ler/identificar ou comparar dados estatísticos em tabelas (simples ou de dupla entrada)", descH: null },
+  { d: "D28", h: "5E1.3", n: "N6", descD: "Ler/identificar ou comparar dados estatísticos em gráficos (barras, colunas, pictóricos ou linhas)", descH: null },
+];
+
+function formatDescritorTooltip(entry) {
+  if (!entry?.d) return null;
+  return [entry.d, entry.h, entry.n].filter((part) => part && part !== "—").join(" - ");
+}
+
+function formatDescricaoTooltip(entry) {
+  if (!entry) return null;
+  const parts = [entry.descD, entry.descH].filter((part) => part && part !== "—");
+  return parts.length ? parts.join(" - ") : null;
+}
+
+/** Índice 0-based da "Questão NN" no caderno da disciplina. */
+function questaoIndexFromLabel(q) {
+  const m = String(q || "").match(/(\d+)/);
+  if (!m) return -1;
+  return Number(m[1]) - 1;
+}
+
+function descritorEntryForQuestion(q, group = "lp") {
+  const idx = questaoIndexFromLabel(q);
+  if (idx < 0) return null;
+  const list = group === "mat" ? DESCRITORES_MAT : DESCRITORES_LP;
+  return list[idx] || null;
+}
+
+function descritorTooltipForQuestion(q, group = "lp") {
+  return formatDescritorTooltip(descritorEntryForQuestion(q, group));
+}
+
+function descricaoTooltipForQuestion(q, group = "lp") {
+  return formatDescricaoTooltip(descritorEntryForQuestion(q, group));
+}
 
 const NIVEIS_PROF = [
   { nivel: 0, color: "#FF3B30" },
@@ -70,6 +155,24 @@ const PERIODOS = {
 /** Fallback quando meta não declara o período padrão. */
 const PERIODO_DADOS = "percurso";
 
+function anosDisponiveis() {
+  const list = DADOS.meta?.anosDisponiveis;
+  if (Array.isArray(list) && list.length) return list.map(Number);
+  if (DADOS.byAno) return Object.keys(DADOS.byAno).map(Number).sort((a, b) => a - b);
+  return [Number(DADOS.meta?.ano || 5)];
+}
+
+function anoPadrao() {
+  return Number(DADOS.meta?.anoPadrao || DADOS.meta?.ano || anosDisponiveis()[0] || 5);
+}
+
+/** Pacote do ano ativo (4º ou 5º), sem misturar turmas. */
+function dadosAno(ano = state.ano) {
+  const bloco = DADOS.byAno?.[String(ano)];
+  if (bloco) return bloco;
+  return DADOS;
+}
+
 const state = {
   view: "dashboard",
   chartPanel: "comparativo",
@@ -77,6 +180,7 @@ const state = {
   disciplina: "geral",
   escola: "",
   turma: "",
+  ano: anoPadrao(),
   periodo: "percurso",
   faixa: "",
   search: "",
@@ -86,27 +190,35 @@ const state = {
 };
 
 function periodoPadrao() {
-  return DADOS.meta?.periodoPadrao || DADOS.meta?.periodo || PERIODO_DADOS;
+  const meta = dadosAno().meta || DADOS.meta;
+  return meta?.periodoPadrao || meta?.periodo || PERIODO_DADOS;
 }
 
 function periodosDisponiveis() {
-  return DADOS.meta?.periodosDisponiveis || Object.keys(DADOS.byPeriodo || {}) || [periodoPadrao()];
+  const pack = dadosAno();
+  return pack.meta?.periodosDisponiveis || Object.keys(pack.byPeriodo || {}) || [periodoPadrao()];
 }
 
 function periodoBundle(periodo = state.periodo) {
-  if (DADOS.byPeriodo?.[periodo]) return DADOS.byPeriodo[periodo];
+  const pack = dadosAno();
+  if (pack.byPeriodo?.[periodo]) return pack.byPeriodo[periodo];
   if (periodo === periodoPadrao()) {
     return {
-      meta: DADOS.meta,
-      escolasQuestoesLp: DADOS.escolasQuestoesLp,
-      escolasQuestoesMat: DADOS.escolasQuestoesMat,
+      meta: pack.meta,
+      escolasQuestoesLp: pack.escolasQuestoesLp,
+      escolasQuestoesMat: pack.escolasQuestoesMat,
     };
   }
   return null;
 }
 
 function metaAtivo() {
-  return periodoBundle()?.meta || DADOS.meta;
+  return periodoBundle()?.meta || dadosAno().meta || DADOS.meta;
+}
+
+function syncAnoTitle() {
+  const ano = state.ano || anoPadrao();
+  document.title = `ADSE — Painel ${ano}º Ano (Aprendizado)`;
 }
 
 function expandPeriodo(row, periodo = state.periodo) {
@@ -162,11 +274,11 @@ function faixaFromProficiencia(ba, disciplina = disciplinaProficiencia()) {
     if (score <= 274) return faixas[2];
     return faixas[3];
   }
+  // Faixas contínuas (evita buraco entre 249 e 250 em valores fracionários).
   if (score <= 149) return faixas[0];
-  if (score >= 150 && score < 200) return faixas[1];
-  if (score >= 200 && score <= 249) return faixas[2];
-  if (score >= 250) return faixas[3];
-  return faixas[0];
+  if (score < 200) return faixas[1];
+  if (score < 250) return faixas[2];
+  return faixas[3];
 }
 
 function faixaFromAprendizadoLabel(label) {
@@ -187,7 +299,7 @@ function proficienciaBlock(row, disciplina = disciplinaProficiencia()) {
   if (row?.[field]?.proficiencia != null || row?.[field]?.aprendizado) {
     return row[field];
   }
-  const raw = DADOS.turmas.find((t) => t.escola === row?.escola && t.turma === row?.turma);
+  const raw = dadosAno().turmas.find((t) => t.escola === row?.escola && t.turma === row?.turma);
   return raw?.periodos?.[state.periodo]?.[field] || null;
 }
 
@@ -272,7 +384,7 @@ function periodoTemDados(periodo = state.periodo) {
 function turmasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
   if (!exclude.periodo && !periodoTemDados()) return [];
-  return DADOS.turmas
+  return dadosAno().turmas
     .map((row) => {
       const active = expandPeriodo(row, state.periodo);
       if (active) return active;
@@ -296,7 +408,7 @@ function turmasBase(exclude = {}) {
 function escolasBase(exclude = {}) {
   const q = exclude.search ? "" : state.search.trim().toLowerCase();
   if (!exclude.periodo && !periodoTemDados()) return [];
-  return DADOS.escolas
+  return dadosAno().escolas
     .map((row) => {
       const active = expandPeriodo(row, state.periodo);
       if (active) return active;
@@ -548,6 +660,13 @@ function fillSelects() {
     `<option value="escolas">${optionLabel("Por escola", `${escolasCount} escolas`)}</option>`,
   ].join("");
 
+  const anoSelect = document.getElementById("filterAno");
+  if (anoSelect) {
+    anoSelect.innerHTML = anosDisponiveis()
+      .map((ano) => `<option value="${ano}">${ano}º ano</option>`)
+      .join("");
+  }
+
   const periodoSelect = document.getElementById("filterPeriodo");
   if (periodoSelect) {
     const order = ["diagnostica", "percurso", "saida"];
@@ -626,14 +745,23 @@ function fillSelects() {
 }
 
 function syncSelects() {
-  ["filterVisao", "filterDisciplina", "filterEscola", "filterTurma", "filterPeriodo"].forEach((id) => {
+  ["filterAno", "filterVisao", "filterDisciplina", "filterEscola", "filterTurma", "filterPeriodo"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     const key = id.replace("filter", "").toLowerCase();
     el.value =
       state[key] ||
-      (id === "filterDisciplina" ? "geral" : id === "filterVisao" ? "turmas" : id === "filterPeriodo" ? periodoPadrao() : "");
+      (id === "filterDisciplina"
+        ? "geral"
+        : id === "filterVisao"
+          ? "turmas"
+          : id === "filterPeriodo"
+            ? periodoPadrao()
+            : id === "filterAno"
+              ? String(anoPadrao())
+              : "");
   });
+  syncAnoTitle();
 }
 
 function renderChips() {
@@ -643,6 +771,9 @@ function renderChips() {
   if (state.disciplina !== "geral") items.push({ key: "disciplina", label: DISCIPLINAS[state.disciplina] });
   if (state.escola) items.push({ key: "escola", label: shortSchool(state.escola) });
   if (state.turma) items.push({ key: "turma", label: `Turma ${state.turma}` });
+  if (state.ano && state.ano !== anoPadrao()) {
+    items.push({ key: "ano", label: `Ano: ${state.ano}º` });
+  }
   if (state.periodo && state.periodo !== periodoPadrao()) {
     items.push({ key: "periodo", label: `Período: ${PERIODOS[state.periodo] || state.periodo}` });
   }
@@ -778,6 +909,59 @@ function applyTheme(theme) {
     btn.setAttribute("aria-checked", theme === "light" ? "true" : "false");
     btn.title = theme === "light" ? "Modo claro" : "Modo escuro";
   }
+}
+
+function isFullscreenActive() {
+  return Boolean(
+    document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement
+  );
+}
+
+function syncFullscreenUi() {
+  const active = isFullscreenActive();
+  const btn = document.getElementById("btnFullscreen");
+  if (btn) {
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+    btn.title = active ? "Sair da tela cheia (Esc)" : "Tela cheia";
+    btn.setAttribute("aria-label", active ? "Sair da tela cheia" : "Entrar em tela cheia");
+    const expand = btn.querySelector(".fs-icon-expand");
+    const compress = btn.querySelector(".fs-icon-compress");
+    if (expand) expand.hidden = active;
+    if (compress) compress.hidden = !active;
+  }
+  requestAnimationFrame(() => resizeVisibleCharts());
+}
+
+async function enterFullscreen() {
+  const root = document.documentElement;
+  try {
+    if (root.requestFullscreen) await root.requestFullscreen();
+    else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+    else if (root.msRequestFullscreen) root.msRequestFullscreen();
+  } catch (_) {
+    /* Permissão negada / API indisponível */
+  }
+  syncFullscreenUi();
+}
+
+async function exitFullscreen() {
+  try {
+    if (!isFullscreenActive()) return;
+    if (document.exitFullscreen) await document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
+  } catch (_) {
+    /* ignore */
+  }
+  syncFullscreenUi();
+}
+
+async function toggleFullscreen() {
+  if (isFullscreenActive()) await exitFullscreen();
+  else await enterFullscreen();
 }
 
 function chartDefaults() {
@@ -1036,7 +1220,8 @@ function renderComparativo() {
   if (titleEl) titleEl.textContent = "Diagnóstica × Percurso × Saída";
   if (subEl) {
     const escopo = state.visao === "escolas" ? "escolas" : "turmas";
-    subEl.textContent = `${DISCIPLINAS[state.disciplina]} · ${sorted.length} ${escopo} · destaque: ${PERIODOS[state.periodo] || state.periodo}`;
+    const ano = state.ano || anoPadrao();
+    subEl.textContent = `${ano}º ano · ${DISCIPLINAS[state.disciplina]} · ${sorted.length} ${escopo} · destaque: ${PERIODOS[state.periodo] || state.periodo}`;
   }
 
   const wrap = document.getElementById("chartComparativoWrap");
@@ -1288,7 +1473,7 @@ function renderDonut(rows) {
   const escala = disciplinaProficiencia() === "mat" ? "≤174 / 175–224 / 225–274 / ≥275" : "≤149 / 150–199 / 200–249 / ≥250";
   document.getElementById("chartDonutTitle").textContent = "Faixas de desempenho";
   document.getElementById("chartDonutSub").textContent =
-    `${DISCIPLINAS[state.disciplina]} · proficiência ${discLabel} (${escala})`;
+    `${state.ano || anoPadrao()}º ano · ${DISCIPLINAS[state.disciplina]} · proficiência ${discLabel} (${escala})`;
 }
 
 function escolaBaseNome(nome) {
@@ -1450,7 +1635,7 @@ function renderRanking(rows) {
 
   document.getElementById("chartRankingTitle").textContent =
     state.visao === "escolas" ? "Ranking por escola" : "Ranking por turma";
-  document.getElementById("chartRankingSub").textContent = `${DISCIPLINAS[state.disciplina]} · 1º ao ${sorted.length}º · clique para filtrar`;
+  document.getElementById("chartRankingSub").textContent = `${state.ano || anoPadrao()}º ano · ${DISCIPLINAS[state.disciplina]} · 1º ao ${sorted.length}º · clique para filtrar`;
 
   const ctx = document.getElementById("chartRanking");
   const labels = labelRows(sorted);
@@ -1576,6 +1761,8 @@ function mergeQuestoesLpMat(lpMap, matMap, acLp, acMat, meta) {
         v: lpMap[qLp],
         acertos: acLp[qLp] ?? null,
         group: "lp",
+        descritor: descritorTooltipForQuestion(qLp, "lp"),
+        descricao: descricaoTooltipForQuestion(qLp, "lp"),
       });
     }
     if (qMat && matMap[qMat] != null) {
@@ -1584,6 +1771,8 @@ function mergeQuestoesLpMat(lpMap, matMap, acLp, acMat, meta) {
         v: matMap[qMat],
         acertos: acMat[qMat] ?? null,
         group: "mat",
+        descritor: descritorTooltipForQuestion(qMat, "mat"),
+        descricao: descricaoTooltipForQuestion(qMat, "mat"),
       });
     }
   }
@@ -1603,6 +1792,7 @@ function questoesData() {
     const acertosMap = isMat ? meta.acertosQuestoesMat : meta.acertosQuestoesLp;
     const source = isMat ? bundle.escolasQuestoesMat : bundle.escolasQuestoesLp;
 
+    const group = isMat ? "mat" : "lp";
     if (state.escola) {
       const keys = questoesEscopoKeys(source);
       if (keys.length) {
@@ -1611,7 +1801,9 @@ function questoesData() {
           q,
           v: media[q] ?? null,
           acertos: acertos[q] ?? null,
-          group: isMat ? "mat" : "lp",
+          group,
+          descritor: descritorTooltipForQuestion(q, group),
+          descricao: descricaoTooltipForQuestion(q, group),
         }));
       }
     }
@@ -1620,7 +1812,9 @@ function questoesData() {
       q,
       v: mediaMap[q] ?? null,
       acertos: acertosMap?.[q] ?? null,
-      group: isMat ? "mat" : "lp",
+      group,
+      descritor: descritorTooltipForQuestion(q, group),
+      descricao: descricaoTooltipForQuestion(q, group),
     }));
   }
 
@@ -1697,6 +1891,125 @@ function renderQuestoesAvaliadosTab() {
   tab?.setAttribute("aria-label", `Alunos avaliados: ${fmt(value)}`);
 }
 
+/** Cor da barra de questão pelas faixas SAEB (mesmo padrão do donut). */
+function corQuestaoPorFaixa(pct, disciplina = "lp") {
+  const scale = disciplina === "mat" ? 350 : 325;
+  const score = (Number(pct) / 100) * scale;
+  return faixaFromProficiencia(score, disciplina).color;
+}
+
+/** Formata % da legenda de questões (pt-BR, 2 casas). */
+function fmtPctLegenda(pct) {
+  return `${pct.toFixed(2).replace(".", ",")}%`;
+}
+
+/**
+ * Converte cortes da escala SAEB em faixas % contínuas (sem buracos).
+ * Cada faixa começa 0,01 p.p. após o fim da anterior — a sequência fica
+ * contínua na legenda (ex.: …45,85% → 45,86%…), em vez de pular os inteiros
+ * da escala (149→150 vira 45,85%→46,15%).
+ * LP (325): ≤149 | <200 | <250 | ≥250
+ * MAT (350): ≤174 | ≤224 | ≤274 | >274
+ */
+function buildQuestoesLegendRanges(disciplina) {
+  const cores = {
+    insuficiente: "#FF3B30",
+    basico: "#FF9500",
+    proficiente: "#FFD60A",
+    avancado: "#00E676",
+  };
+  const scale = disciplina === "mat" ? 350 : 325;
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const toPct = (score) => (score / scale) * 100;
+
+  /** Maior % (2 casas) ainda classificada na faixa antes do corte exclusivo. */
+  const maxPctExclusive = (scoreLimite) => {
+    const exact = toPct(scoreLimite);
+    const cand = round2(exact);
+    return (cand / 100) * scale < scoreLimite ? cand : round2(cand - 0.01);
+  };
+
+  /** % (2 casas) do corte inclusivo (≤ score). */
+  const maxPctInclusive = (scoreLimite) => round2(toPct(scoreLimite));
+
+  let fimInsuf;
+  let fimBasico;
+  let fimProf;
+  if (disciplina === "mat") {
+    fimInsuf = maxPctInclusive(174);
+    fimBasico = maxPctInclusive(224);
+    fimProf = maxPctInclusive(274);
+  } else {
+    fimInsuf = maxPctInclusive(149);
+    fimBasico = maxPctExclusive(200);
+    fimProf = maxPctExclusive(250);
+  }
+
+  const iniBasico = round2(fimInsuf + 0.01);
+  const iniProf = round2(fimBasico + 0.01);
+  const iniAvanc = round2(fimProf + 0.01);
+
+  return [
+    { key: "insuficiente", label: "Insuficiente", range: `até ${fmtPctLegenda(fimInsuf)}`, color: cores.insuficiente },
+    {
+      key: "basico",
+      label: "Básico",
+      range: `${fmtPctLegenda(iniBasico)} – ${fmtPctLegenda(fimBasico)}`,
+      color: cores.basico,
+    },
+    {
+      key: "proficiente",
+      label: "Proficiente",
+      range: `${fmtPctLegenda(iniProf)} – ${fmtPctLegenda(fimProf)}`,
+      color: cores.proficiente,
+    },
+    { key: "avancado", label: "Avançado", range: `a partir de ${fmtPctLegenda(iniAvanc)}`, color: cores.avancado },
+  ];
+}
+
+/** Legendas de faixas por disciplina (escala SAEB → % contínuas). */
+const QUESTOES_LEGEND = {
+  lp: buildQuestoesLegendRanges("lp"),
+  mat: buildQuestoesLegendRanges("mat"),
+};
+
+function renderQuestoesLegend(data) {
+  const layout = document.getElementById("questoesLayout");
+  const panel = document.getElementById("questoesLegendPanel");
+  const legend = document.getElementById("questoesLegend");
+  if (!layout || !panel || !legend) return;
+
+  const disciplina = state.disciplina === "mat" ? "mat" : state.disciplina === "lp" ? "lp" : null;
+  const items = disciplina ? QUESTOES_LEGEND[disciplina] : null;
+  const show = Boolean(items);
+  layout.classList.toggle("has-legend", show);
+  panel.hidden = !show;
+  if (!show) {
+    legend.innerHTML = "";
+    return;
+  }
+
+  const scale = disciplina === "mat" ? 350 : 325;
+  const counts = Object.fromEntries(items.map((item) => [item.key, 0]));
+  (data || []).forEach((d) => {
+    if (d.v == null) return;
+    const key = faixaFromProficiencia((Number(d.v) / 100) * scale, disciplina).key;
+    if (counts[key] != null) counts[key] += 1;
+  });
+
+  legend.innerHTML = items
+    .map(
+      (item) => `
+    <li class="questoes-legend-item" style="--faixa-color:${item.color}" title="${item.label}: ${item.range}">
+      <span class="questoes-legend-dot" aria-hidden="true"></span>
+      <span class="questoes-legend-label">${item.label}</span>
+      <span class="questoes-legend-range">${item.range}</span>
+      <b class="questoes-legend-count">${counts[item.key]}</b>
+    </li>`
+    )
+    .join("");
+}
+
 function renderQuestoes() {
   destroyChart("questoes");
   const { muted, text } = chartDefaults();
@@ -1707,14 +2020,18 @@ function renderQuestoes() {
       : `Desempenho por questão — ${DISCIPLINAS[state.disciplina]}`;
 
   renderQuestoesAvaliadosTab();
+  renderQuestoesLegend(data);
 
-  const COR_QUESTAO_LP = "rgba(61, 123, 255, 0.85)";
-  const COR_QUESTAO_MAT = "rgba(0, 230, 118, 0.85)";
   const corQuestao = (d) => {
     const group = d.group || (state.disciplina === "mat" ? "mat" : state.disciplina === "lp" ? "lp" : null);
-    if (group === "mat") return COR_QUESTAO_MAT;
-    if (group === "lp") return COR_QUESTAO_LP;
-    return state.disciplina === "mat" ? COR_QUESTAO_MAT : COR_QUESTAO_LP;
+    // LP e MAT: vermelho / laranja / amarelo / verde pelas faixas SAEB
+    if (group === "lp" || state.disciplina === "lp") {
+      return corQuestaoPorFaixa(d.v, "lp");
+    }
+    if (group === "mat" || state.disciplina === "mat") {
+      return corQuestaoPorFaixa(d.v, "mat");
+    }
+    return corQuestaoPorFaixa(d.v, "lp");
   };
 
   const ctx = document.getElementById("chartQuestoes");
@@ -1728,6 +2045,8 @@ function renderQuestoes() {
           label: "Acerto %",
           data: data.map((d) => d.v),
           acertos: data.map((d) => d.acertos ?? null),
+          descritores: data.map((d) => d.descritor || null),
+          descricoes: data.map((d) => d.descricao || null),
           backgroundColor: data.map(corQuestao),
           borderRadius: 6,
         },
@@ -1751,7 +2070,20 @@ function renderQuestoes() {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => fmtPct(ctx.raw) } },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              const item = items?.[0];
+              if (!item) return "";
+              const descritor = item.dataset?.descritores?.[item.dataIndex];
+              return descritor || item.label || "";
+            },
+            label: (ctx) => {
+              const descricao = ctx.dataset?.descricoes?.[ctx.dataIndex];
+              return descricao || fmtPct(ctx.raw);
+            },
+          },
+        },
       },
     },
     plugins: [questoesBarLabelsPlugin],
@@ -2036,6 +2368,7 @@ function renderProficiencia() {
   if (title) title.textContent = "Mapa de Proficiência";
   if (kicker) {
     kicker.textContent =
+      `${state.ano || anoPadrao()}º ano · ` +
       (PERIODOS[source.periodo] || source.periodo) +
       " · " +
       (state.disciplina === "mat" ? "Matemática" : "Língua Portuguesa");
@@ -2044,6 +2377,7 @@ function renderProficiencia() {
     const disc = state.disciplina === "mat" ? "Matemática" : "Língua Portuguesa";
     const escala = state.disciplina === "mat" ? "escala 350 · níveis 0–10" : "escala 325 · níveis 0–9";
     sub.textContent =
+      `${state.ano || anoPadrao()}º ano · ` +
       (PERIODOS[source.periodo] || source.periodo) +
       " · " +
       disc +
@@ -2127,7 +2461,7 @@ function renderTable(rows) {
 
   document.getElementById("tableCount").textContent = `${sorted.length} ${state.visao === "escolas" ? "escolas" : "turmas"}`;
   const scope = document.getElementById("tableScope");
-  if (scope) scope.textContent = ` · ${DISCIPLINAS[state.disciplina]} · 5º ano`;
+  if (scope) scope.textContent = ` · ${DISCIPLINAS[state.disciplina]} · ${state.ano || anoPadrao()}º ano`;
   document.getElementById("pageInfo").textContent = `${state.page} de ${totalPages}`;
 
   document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -2185,7 +2519,7 @@ function exportCsv(rows) {
   const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "adse-5ano-ranking.csv";
+  a.download = `adse-${state.ano || anoPadrao()}ano-ranking.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -2278,8 +2612,19 @@ function bindEvents() {
     render();
   });
 
-  document.getElementById("filterPeriodo").addEventListener("change", (e) => {
+  document.getElementById("filterPeriodo")?.addEventListener("change", (e) => {
     state.periodo = e.target.value;
+    state.page = 1;
+    fillSelects();
+    render();
+  });
+
+  document.getElementById("filterAno")?.addEventListener("change", (e) => {
+    state.ano = Number(e.target.value) || anoPadrao();
+    state.escola = "";
+    state.turma = "";
+    state.faixa = "";
+    state.periodo = periodoPadrao();
     state.page = 1;
     fillSelects();
     render();
@@ -2290,12 +2635,29 @@ function bindEvents() {
     render();
   });
 
+  const onFullscreenClick = (e) => {
+    e.preventDefault();
+    toggleFullscreen();
+  };
+  document.getElementById("btnFullscreen")?.addEventListener("click", onFullscreenClick);
+  document.addEventListener("fullscreenchange", syncFullscreenUi);
+  document.addEventListener("webkitfullscreenchange", syncFullscreenUi);
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "f" || e.key === "F") && (e.altKey || e.ctrlKey) && !e.metaKey) {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      e.preventDefault();
+      toggleFullscreen();
+    }
+  });
+
   document.getElementById("btnResetAll").addEventListener("click", () => {
     Object.assign(state, {
       visao: "turmas",
       disciplina: "geral",
       escola: "",
       turma: "",
+      ano: anoPadrao(),
       periodo: periodoPadrao(),
       faixa: "",
       search: "",
@@ -2328,7 +2690,12 @@ function bindEvents() {
     if (key === "visao") state.visao = "turmas";
     else if (key === "disciplina") state.disciplina = "geral";
     else if (key === "periodo") state.periodo = periodoPadrao();
-    else state[key] = "";
+    else if (key === "ano") {
+      state.ano = anoPadrao();
+      state.escola = "";
+      state.turma = "";
+      state.periodo = periodoPadrao();
+    } else state[key] = "";
     state.page = 1;
     fillSelects();
     render();
@@ -2378,10 +2745,399 @@ function bindEvents() {
 
   document.getElementById("btnExport").addEventListener("click", () => exportCsv(activeRows()));
 
+  document.getElementById("btnPrintChart")?.addEventListener("click", () => {
+    openPrintPreview().catch((err) => {
+      console.error(err);
+      alert("Não foi possível gerar a pré-visualização do gráfico.");
+    });
+  });
+  document.getElementById("btnDownloadJpg")?.addEventListener("click", () => {
+    downloadPrintJpg().catch((err) => {
+      console.error(err);
+      alert("Não foi possível gerar o JPG.");
+    });
+  });
+  document.getElementById("btnDownloadPdf")?.addEventListener("click", () => {
+    downloadPrintPdf().catch((err) => {
+      console.error(err);
+      alert("Não foi possível gerar o PDF. Verifique se a biblioteca jsPDF carregou.");
+    });
+  });
+  document.getElementById("btnConfirmPrint")?.addEventListener("click", () => {
+    confirmPrintPreview();
+  });
+  document.querySelectorAll("[data-close-preview]").forEach((el) => {
+    el.addEventListener("click", closePrintPreview);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("printPreview")?.hidden) {
+      closePrintPreview();
+    }
+  });
+
   window.addEventListener("resize", () => resizeVisibleCharts());
 }
 
+const printPreviewState = {
+  dataUrl: null,
+  title: "",
+  baseName: "adse-grafico",
+  filename: "adse-grafico.pdf",
+};
+
+function chartPanelTitle() {
+  const map = {
+    comparativo: "Diagnóstica × Percurso × Saída",
+    faixasRanking: "Faixas e Ranking",
+    questoes: "Desempenho por questão",
+    proficiencia: "Mapa de Proficiência",
+  };
+  return map[state.chartPanel] || "Gráfico ADSE";
+}
+
+function printCaptureTarget() {
+  if (state.view === "table") return document.getElementById("viewTable");
+  const map = {
+    comparativo: "#panelComparativo .chart-card",
+    faixasRanking: "#panelFaixasRanking",
+    questoes: "#panelQuestoes .chart-card",
+    proficiencia: "#panelProficiencia",
+  };
+  return document.querySelector(map[state.chartPanel] || map.comparativo);
+}
+
+function printFilterLabels() {
+  const items = [];
+  items.push(`Ano: ${state.ano || anoPadrao()}º ano`);
+  items.push(`Visão: ${state.visao === "escolas" ? "escolas" : "turmas"}`);
+  items.push(`Disciplina: ${DISCIPLINAS[state.disciplina] || state.disciplina}`);
+  items.push(`Período: ${PERIODOS[state.periodo] || state.periodo}`);
+  if (state.escola) items.push(`Escola: ${shortSchool(state.escola)}`);
+  if (state.turma) items.push(`Turma: ${state.turma}`);
+  if (state.faixa) {
+    items.push(`Faixa: ${faixasAtivas().find((f) => f.key === state.faixa)?.label || state.faixa}`);
+  }
+  items.push(`Painel: ${chartPanelTitle()}`);
+  return items;
+}
+
+function renderPrintFilters() {
+  const list = document.getElementById("printPreviewFilters");
+  if (!list) return;
+  list.innerHTML = printFilterLabels()
+    .map((label) => `<li>${label}</li>`)
+    .join("");
+}
+
+function closePrintPreview() {
+  const modal = document.getElementById("printPreview");
+  if (modal) modal.hidden = true;
+}
+
+function waitFrames(n = 2) {
+  return new Promise((resolve) => {
+    const step = () => {
+      if (n <= 0) return resolve();
+      n -= 1;
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/** Expande áreas com scroll para a captura incluir TODO o gráfico. */
+async function withFullChartCapture(target, run) {
+  const backups = [];
+  const save = (el) => {
+    if (!el || backups.some((b) => b.el === el)) return;
+    backups.push({
+      el,
+      cssText: el.style.cssText,
+    });
+  };
+  const expand = (el) => {
+    if (!el) return;
+    save(el);
+    el.style.overflow = "visible";
+    el.style.overflowX = "visible";
+    el.style.overflowY = "visible";
+    el.style.maxWidth = "none";
+    el.style.maxHeight = "none";
+  };
+
+  expand(target);
+  target
+    .querySelectorAll(
+      ".chart-comparativo-scroll, .chart-comparativo-inner, .chart-wrap, .chart-wrap.tall, .table-scroll, .ranking-slot, .layout-bottom, .questoes-layout"
+    )
+    .forEach(expand);
+
+  const wrap = document.getElementById("chartComparativoWrap");
+  const scroller = document.getElementById("chartComparativoScroller");
+  if (wrap && target.contains(wrap)) {
+    const labels = charts.comparativo?.data?.labels?.length || 0;
+    const need = Math.max(wrap.scrollWidth, Math.max(1, labels) * 88, scroller?.clientWidth || 0);
+    expand(scroller);
+    save(wrap);
+    wrap.style.width = `${need}px`;
+    wrap.style.minWidth = `${need}px`;
+    if (scroller) {
+      scroller.style.width = `${need}px`;
+      scroller.style.minWidth = `${need}px`;
+      scroller.scrollLeft = 0;
+    }
+  }
+
+  // Rankings verticais longos: libera altura total
+  ["chartRankingWrap", "chartRankingEscolasWrap", "chartProficienciaWrap"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || !target.contains(el)) return;
+    expand(el);
+    const fullH = Math.max(el.scrollHeight, el.clientHeight);
+    el.style.height = `${fullH}px`;
+    el.style.minHeight = `${fullH}px`;
+  });
+
+  // Card/painel acompanha a largura total expandida
+  const fullW = Math.max(target.scrollWidth, wrap?.scrollWidth || 0, scroller?.scrollWidth || 0);
+  if (fullW > target.clientWidth) {
+    save(target);
+    target.style.width = `${fullW}px`;
+    target.style.minWidth = `${fullW}px`;
+  }
+
+  resizeVisibleCharts();
+  await waitFrames(3);
+
+  try {
+    return await run(target);
+  } finally {
+    backups
+      .slice()
+      .reverse()
+      .forEach(({ el, cssText }) => {
+        el.style.cssText = cssText;
+      });
+    syncComparativoWidth();
+    resizeVisibleCharts();
+  }
+}
+
+async function capturePrintCanvas(target) {
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#ffffff";
+  return withFullChartCapture(target, async (el) => {
+    const width = Math.ceil(Math.max(el.scrollWidth, el.offsetWidth));
+    const height = Math.ceil(Math.max(el.scrollHeight, el.offsetHeight));
+    return html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: bg,
+      logging: false,
+      width,
+      height,
+      windowWidth: width,
+      windowHeight: height,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+    });
+  });
+}
+
+async function openPrintPreview() {
+  if (typeof html2canvas !== "function") {
+    throw new Error("html2canvas não carregou");
+  }
+  const btn = document.getElementById("btnPrintChart");
+  const target = printCaptureTarget();
+  if (!target) throw new Error("Painel do gráfico não encontrado");
+
+  btn?.classList.add("is-busy");
+  try {
+    const canvas = await capturePrintCanvas(target);
+    const dataUrl = canvas.toDataURL("image/png");
+    const title = chartPanelTitle();
+    const safeName = title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase();
+
+    printPreviewState.dataUrl = dataUrl;
+    printPreviewState.title = title;
+    printPreviewState.baseName = `adse-${state.ano || anoPadrao()}ano-${safeName || "grafico"}`;
+    printPreviewState.filename = `${printPreviewState.baseName}.pdf`;
+
+    const img = document.getElementById("printPreviewImg");
+    const htmlBox = document.getElementById("printPreviewHtml");
+    if (img) {
+      img.hidden = false;
+      img.src = dataUrl;
+    }
+    if (htmlBox) {
+      htmlBox.hidden = true;
+      htmlBox.innerHTML = "";
+    }
+
+    const sub = document.getElementById("printPreviewSub");
+    if (sub) {
+      sub.textContent = `${state.ano || anoPadrao()}º ano · ${title} · gráfico completo (todas as turmas/escolas)`;
+    }
+
+    renderPrintFilters();
+    const modal = document.getElementById("printPreview");
+    if (modal) modal.hidden = false;
+  } finally {
+    btn?.classList.remove("is-busy");
+  }
+}
+
+async function downloadPrintJpg() {
+  if (!printPreviewState.dataUrl) {
+    await openPrintPreview();
+  }
+  if (!printPreviewState.dataUrl) throw new Error("Sem imagem para o JPG");
+
+  const img = new Image();
+  img.src = printPreviewState.dataUrl;
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  const jpgUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const link = document.createElement("a");
+  link.href = jpgUrl;
+  link.download = `${printPreviewState.baseName || "adse-grafico"}.jpg`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function downloadPrintPdf() {
+  if (!printPreviewState.dataUrl) {
+    await openPrintPreview();
+  }
+  const jsPdfNs = window.jspdf;
+  const JsPDF = jsPdfNs?.jsPDF || window.jsPDF;
+  if (!JsPDF) throw new Error("jsPDF não carregou");
+  if (!printPreviewState.dataUrl) throw new Error("Sem imagem para o PDF");
+
+  const img = new Image();
+  img.src = printPreviewState.dataUrl;
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+  });
+
+  const margin = 10;
+  const headerH = 16;
+  // Página sob medida para caber o gráfico inteiro sem cortar
+  const pxToMm = 0.264583;
+  const contentW = img.width * pxToMm;
+  const contentH = img.height * pxToMm;
+  const pageW = Math.max(297, contentW + margin * 2);
+  const pageH = Math.max(210, contentH + margin * 2 + headerH);
+  const orientation = pageW >= pageH ? "landscape" : "portrait";
+  const pdf = new JsPDF({ orientation, unit: "mm", format: [pageW, pageH] });
+
+  const maxW = pageW - margin * 2;
+  const maxH = pageH - margin * 2 - headerH;
+  const ratio = Math.min(maxW / img.width, maxH / img.height);
+  const drawW = img.width * ratio;
+  const drawH = img.height * ratio;
+  const x = (pageW - drawW) / 2;
+  const y = margin + headerH;
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(12);
+  pdf.text(`ADSE · ${state.ano || anoPadrao()}º Ano · São José da Tapera`, margin, margin + 5);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10);
+  pdf.text(printPreviewState.title || "Gráfico", margin, margin + 11);
+  pdf.addImage(printPreviewState.dataUrl, "PNG", x, y, drawW, drawH);
+  pdf.save(printPreviewState.filename || "adse-grafico.pdf");
+}
+
+function confirmPrintPreview() {
+  if (!printPreviewState.dataUrl) {
+    alert("Gere a pré-visualização antes de imprimir.");
+    return;
+  }
+
+  // Impressão via iframe oculto (evita bloqueio de pop-up do navegador)
+  let frame = document.getElementById("printFrame");
+  if (!frame) {
+    frame = document.createElement("iframe");
+    frame.id = "printFrame";
+    frame.title = "Impressão do gráfico";
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText =
+      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    document.body.appendChild(frame);
+  }
+
+  const filters = printFilterLabels().map((f) => `<li>${f}</li>`).join("");
+  const title = printPreviewState.title || "Gráfico";
+  const doc = frame.contentDocument || frame.contentWindow?.document;
+  if (!doc) {
+    alert("Não foi possível preparar a impressão.");
+    return;
+  }
+
+  doc.open();
+  doc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page { size: auto; margin: 10mm; }
+      html, body { margin: 0; padding: 0; background: #fff; color: #141418; }
+      body { font-family: "DM Sans", Segoe UI, sans-serif; padding: 12px; }
+      h1 { font-size: 16px; margin: 0 0 8px; }
+      ul { padding-left: 18px; margin: 0 0 12px; color: #555; font-size: 12px; }
+      img { max-width: 100%; height: auto; display: block; }
+      @media print {
+        body { padding: 0; }
+        h1 { font-size: 13px; }
+      }
+    </style></head><body>
+    <h1>ADSE · ${state.ano || anoPadrao()}º Ano — ${title}</h1>
+    <ul>${filters}</ul>
+    <img id="printImg" src="${printPreviewState.dataUrl}" alt="${title}" />
+    </body></html>`);
+  doc.close();
+
+  const triggerPrint = () => {
+    try {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    } catch (err) {
+      console.error(err);
+      alert("Não foi possível abrir a impressão.");
+    }
+  };
+
+  const img = doc.getElementById("printImg");
+  if (img && !img.complete) {
+    img.onload = () => setTimeout(triggerPrint, 50);
+    img.onerror = triggerPrint;
+  } else {
+    setTimeout(triggerPrint, 50);
+  }
+}
+
 function init() {
+  state.ano = anoPadrao();
   state.periodo = periodoPadrao();
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -2389,6 +3145,7 @@ function init() {
     month: "long",
     year: "numeric",
   });
+  syncAnoTitle();
   fillSelects();
   bindEvents();
   render();

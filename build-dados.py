@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Gera dados.js a partir da planilha ADSE (5º ano)."""
+"""Gera dados.js a partir das planilhas ADSE (4º / 5º ano).
+
+Bloco de proficiência na planilha (a partir da coluna AZ):
+  AZ = % ACERTOS | BA = APRENDIZADO | BB = PROFICIÊNCIA | BC = NÍVEL
+"""
 from __future__ import annotations
 
 import json
@@ -71,22 +75,48 @@ def _norm_header(value) -> str:
 
 
 def find_proficiencia_cols(ws) -> dict[str, int]:
-    """Localiza colunas % ACERTOS / APRENDIZADO / PROFICIÊNCIA / NÍVEL (Diagnóstica LP)."""
+    """Localiza colunas % ACERTOS / APRENDIZADO / PROFICIÊNCIA / NÍVEL a partir de AZ.
+
+    Padrão da planilha (colunas 52–55): AZ=% ACERTOS, BA=APRENDIZADO,
+    BB=PROFICIÊNCIA, BC=NÍVEL. Busca o cabeçalho nessas colunas primeiro.
+    """
     mapping: dict[str, int] = {}
+    # Preferência: bloco AZ–BC (52–55) e vizinhança, depois varredura geral.
+    preferred_cols = list(range(52, 56)) + list(range(45, 52)) + list(range(56, ws.max_column + 1))
+    seen_cols = set(preferred_cols)
+    all_cols = preferred_cols + [c for c in range(1, ws.max_column + 1) if c not in seen_cols]
+
+    def absorb(col: int, header: str) -> None:
+        if "ACERTO" in header and "pctAcertos" not in mapping:
+            mapping["pctAcertos"] = col
+        elif "APRENDIZADO" in header and "aprendizado" not in mapping:
+            mapping["aprendizado"] = col
+        elif "PROFICI" in header and "proficiencia" not in mapping:
+            mapping["proficiencia"] = col
+        elif header.startswith("NIVEL") and "nivel" not in mapping:
+            mapping["nivel"] = col
+
     for row in range(12, 16):
-        for col in range(1, ws.max_column + 1):
+        for col in all_cols:
             header = _norm_header(ws.cell(row, col).value)
-            if not header:
-                continue
-            if "ACERTO" in header and "pctAcertos" not in mapping:
-                mapping["pctAcertos"] = col
-            elif "APRENDIZADO" in header and "aprendizado" not in mapping:
-                mapping["aprendizado"] = col
-            elif "PROFICI" in header and "proficiencia" not in mapping:
-                mapping["proficiencia"] = col
-            elif header.startswith("NIVEL") and "nivel" not in mapping:
-                mapping["nivel"] = col
+            if header:
+                absorb(col, header)
+        if len(mapping) == 4:
+            break
     return mapping
+
+
+def detect_ano(filename: str) -> int:
+    name = filename.lower()
+    if re.search(r"4[ºo°]?\s*ano|\b4ano\b", name):
+        return 4
+    if re.search(r"5[ºo°]?\s*ano|\b5ano\b", name):
+        return 5
+    return 5
+
+
+def ano_label(ano: int) -> str:
+    return f"{ano}º Ano"
 
 
 def parse_nivel(value) -> tuple[int | None, str]:
@@ -366,7 +396,7 @@ def build_proficiencia_rows(escolas: dict[str, dict], disciplina: str) -> list[d
     return rows
 
 
-def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> list[dict]:
+def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict], ano: int = 5) -> list[dict]:
     keys = sorted(set(escolas_lp) | set(escolas_mat))
     turmas: list[dict] = []
     for key in keys:
@@ -391,7 +421,7 @@ def build_turmas(escolas_lp: dict[str, dict], escolas_mat: dict[str, dict]) -> l
         # Igual ao Excel: média das médias já arredondadas (ex.: 82,19 + 52,68 → 67,44)
         media_geral = round_half_up((media_lp + media_mat) / 2, 2) if media_lp or media_mat else 0.0
         row = {
-            "ano": 5,
+            "ano": ano,
             "escola": escola,
             "turma": turma,
             "previstos": previstos,
@@ -515,7 +545,7 @@ def classify_periodo(filename: str) -> str | None:
     return None
 
 
-def find_xlsx_by_periodo() -> dict[str, str]:
+def find_xlsx_by_periodo(ano_alvo: int | None = None) -> dict[str, str]:
     found: dict[str, str] = {}
     candidates: dict[str, list[str]] = {}
     for name in os.listdir(ROOT):
@@ -523,15 +553,21 @@ def find_xlsx_by_periodo() -> dict[str, str]:
             continue
         if name.startswith("~$"):
             continue
+        # Ignora planilha de descritores e auxiliares.
+        if name.lower().startswith("descritores"):
+            continue
         periodo = classify_periodo(name)
         if not periodo:
             continue
+        if ano_alvo is not None and detect_ano(name) != ano_alvo:
+            continue
         candidates.setdefault(periodo, []).append(os.path.join(ROOT, name))
     for periodo, paths in candidates.items():
-        # Prefere planilhas com faixas MAT/LP modeladas (aprendizado-mat, fix-falso, com proficiencia).
-        # Em empate, a mais recente. Valores AY–BB sem cache Excel ainda são derivados da média.
+        # Prefere 4º ano quando pedido; depois faixas MAT/LP modeladas; em empate, a mais recente.
+        # Valores AZ–BC sem cache Excel ainda são derivados da média.
         def preference(path: str) -> tuple:
             name = os.path.basename(path).lower()
+            ano = detect_ano(name)
             score = 0
             if "aprendizado-mat" in name or "fix-falso" in name:
                 score = 3
@@ -539,7 +575,9 @@ def find_xlsx_by_periodo() -> dict[str, str]:
                 score = 2
             elif "proficiencia" in name:
                 score = 1
-            return (-score, -os.path.getmtime(path), name)
+            # Sem ano_alvo, prefere 4º se existir no lote (pedido do painel de saída).
+            ano_rank = 0 if ano == 4 else 1
+            return (ano_rank, -score, -os.path.getmtime(path), name)
 
         preferred = sorted(paths, key=preference)
         found[periodo] = preferred[0]
@@ -550,12 +588,13 @@ def find_xlsx_by_periodo() -> dict[str, str]:
 
 def build_periodo(fp: str, periodo: str) -> dict:
     wb = openpyxl.load_workbook(fp, data_only=True)
+    ano = detect_ano(os.path.basename(fp))
 
     sheet_lp = find_sheet(wb, ["Português", "Portugues"])
     sheet_mat = find_sheet(wb, ["Matemática", "Matematica"])
     questoes_lp, escolas_lp = parse_questions(wb, sheet_lp)
     questoes_mat, escolas_mat = parse_questions(wb, sheet_mat)
-    turmas = build_turmas(escolas_lp, escolas_mat)
+    turmas = build_turmas(escolas_lp, escolas_mat, ano=ano)
     escolas = build_escolas(turmas)
     finalize_questoes(escolas_lp)
     finalize_questoes(escolas_mat)
@@ -570,15 +609,29 @@ def build_periodo(fp: str, periodo: str) -> dict:
     total_avaliados = int(round_half_up((total_avaliados_lp + total_avaliados_mat) / 2, 0))
 
     label = PERIOD_LABELS.get(periodo, periodo)
+    semestre = "2º Semestre 2026" if periodo == "saida" else "1º Semestre 2026"
     proficiencia_lp = build_proficiencia_rows(escolas_lp, "lp")
     proficiencia_mat = build_proficiencia_rows(escolas_mat, "mat")
+    media_lp_geral = (
+        round_half_up(sum(t["mediaLp"] * t["avaliadosLp"] for t in turmas) / total_avaliados_lp, 2)
+        if total_avaliados_lp
+        else 0
+    )
+    media_mat_geral = (
+        round_half_up(sum(t["mediaMat"] * t["avaliadosMat"] for t in turmas) / total_avaliados_mat, 2)
+        if total_avaliados_mat
+        else 0
+    )
+    # Linha PARTICIPAÇÃO / % SIM da planilha (ex.: 55,22%) → bloco AZ–BC municipal.
+    proficiencia_lp_geral = build_proficiencia_block(pct_acertos=media_lp_geral, disciplina="lp")
+    proficiencia_mat_geral = build_proficiencia_block(pct_acertos=media_mat_geral, disciplina="mat")
     return {
         "meta": {
             "titulo": "Avaliação Diagnóstica do Sistema Estadual — ADSE",
-            "subtitulo": f"5º Ano · {label} · 1º Semestre 2026",
+            "subtitulo": f"{ano_label(ano)} · {label} · {semestre}",
             "fonte": os.path.basename(fp),
             "periodo": periodo,
-            "ano": 5,
+            "ano": ano,
             "totalPrevistos": total_previstos,
             "totalAvaliados": total_avaliados,
             "previstosLp": total_previstos_lp,
@@ -588,12 +641,10 @@ def build_periodo(fp: str, periodo: str) -> dict:
             "participacaoGeral": round_half_up(total_avaliados / total_previstos * 100, 1)
             if total_previstos
             else 0,
-            "mediaLpGeral": round_half_up(sum(t["mediaLp"] * t["avaliadosLp"] for t in turmas) / total_avaliados_lp, 2)
-            if total_avaliados_lp
-            else 0,
-            "mediaMatGeral": round_half_up(sum(t["mediaMat"] * t["avaliadosMat"] for t in turmas) / total_avaliados_mat, 2)
-            if total_avaliados_mat
-            else 0,
+            "mediaLpGeral": media_lp_geral,
+            "mediaMatGeral": media_mat_geral,
+            "proficienciaLpGeral": proficiencia_lp_geral,
+            "proficienciaMatGeral": proficiencia_mat_geral,
             "mediaGeral": round_half_up(
                 (
                     (
@@ -654,9 +705,25 @@ def merge_escolas(periodos_data: dict[str, dict]) -> list[dict]:
     return [merged[key] for key in sorted(merged)]
 
 
-def build() -> dict:
-    files = find_xlsx_by_periodo()
-    # Ordem estável: Diagnóstica → Percurso → Saída
+def anos_disponiveis_em_planilhas() -> list[int]:
+    """Lista 4º e/ou 5º ano conforme as planilhas Ranking encontradas."""
+    found: set[int] = set()
+    for name in os.listdir(ROOT):
+        if not name.lower().endswith(".xlsx") or name.startswith("~$"):
+            continue
+        if name.lower().startswith("descritores"):
+            continue
+        if not classify_periodo(name):
+            continue
+        ano = detect_ano(name)
+        if ano in (4, 5):
+            found.add(ano)
+    return sorted(found)
+
+
+def build_ano(ano_alvo: int) -> dict:
+    """Monta o pacote de um único ano (períodos + turmas + escolas)."""
+    files = find_xlsx_by_periodo(ano_alvo=ano_alvo)
     order = ["diagnostica", "percurso", "saida"]
     periodos_data: dict[str, dict] = {}
     for periodo in order:
@@ -666,12 +733,24 @@ def build() -> dict:
         periodos_data[periodo] = build_periodo(fp, periodo)
 
     if not periodos_data:
-        raise FileNotFoundError("Nenhum período processado")
+        raise FileNotFoundError(f"Nenhum período processado para o {ano_alvo}º ano")
 
     disponiveis = list(periodos_data.keys())
-    padrao = "percurso" if "percurso" in periodos_data else disponiveis[0]
+    for candidato in ("saida", "percurso", "diagnostica"):
+        if candidato in periodos_data:
+            padrao = candidato
+            break
+    else:
+        padrao = disponiveis[0]
     padrao_data = periodos_data[padrao]
+    ano = int(padrao_data["meta"].get("ano") or ano_alvo)
     labels = [PERIOD_LABELS.get(p, p) for p in disponiveis]
+    if "saida" in periodos_data and any(p in periodos_data for p in ("diagnostica", "percurso")):
+        semestre_label = "1º e 2º Semestres 2026"
+    elif "saida" in periodos_data:
+        semestre_label = "2º Semestre 2026"
+    else:
+        semestre_label = "1º Semestre 2026"
 
     by_periodo = {
         periodo: {
@@ -686,10 +765,11 @@ def build() -> dict:
 
     meta = {
         **padrao_data["meta"],
-        "subtitulo": f"5º Ano · {' · '.join(labels)} · 1º Semestre 2026",
+        "subtitulo": f"{ano_label(ano)} · {' · '.join(labels)} · {semestre_label}",
         "periodo": padrao,
         "periodoPadrao": padrao,
         "periodosDisponiveis": disponiveis,
+        "ano": ano,
         "fontes": {periodo: data["meta"]["fonte"] for periodo, data in periodos_data.items()},
     }
 
@@ -698,9 +778,48 @@ def build() -> dict:
         "byPeriodo": by_periodo,
         "turmas": merge_turmas(periodos_data),
         "escolas": merge_escolas(periodos_data),
-        # Compatibilidade: questões do período padrão no nível raiz
         "escolasQuestoesLp": padrao_data["escolasQuestoesLp"],
         "escolasQuestoesMat": padrao_data["escolasQuestoesMat"],
+    }
+
+
+def build() -> dict:
+    """Gera dados dos anos disponíveis (4º e/ou 5º), sem sobrescrever um pelo outro."""
+    anos = anos_disponiveis_em_planilhas()
+    if not anos:
+        raise FileNotFoundError("Nenhuma planilha Ranking de 4º ou 5º ano encontrada")
+
+    by_ano: dict[str, dict] = {}
+    for ano in anos:
+        try:
+            by_ano[str(ano)] = build_ano(ano)
+        except FileNotFoundError as exc:
+            print(f"Aviso: {exc}")
+
+    if not by_ano:
+        raise FileNotFoundError("Nenhum período processado")
+
+    # Prefere 5º quando existir (histórico completo); senão o único disponível.
+    if "5" in by_ano:
+        ano_padrao = 5
+    else:
+        ano_padrao = int(next(iter(by_ano)))
+
+    ativo = by_ano[str(ano_padrao)]
+    meta = {
+        **ativo["meta"],
+        "anoPadrao": ano_padrao,
+        "anosDisponiveis": [int(a) for a in sorted(by_ano.keys(), key=int)],
+    }
+
+    return {
+        "meta": meta,
+        "byPeriodo": ativo["byPeriodo"],
+        "turmas": ativo["turmas"],
+        "escolas": ativo["escolas"],
+        "escolasQuestoesLp": ativo["escolasQuestoesLp"],
+        "escolasQuestoesMat": ativo["escolasQuestoesMat"],
+        "byAno": by_ano,
     }
 
 
@@ -710,11 +829,13 @@ def main() -> None:
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     with open(target, "w", encoding="utf-8") as handle:
         handle.write(f"const DADOS = {payload};\n")
-    periodos = ", ".join(data["meta"]["periodosDisponiveis"])
-    print(
-        f"Gerado {len(data['turmas'])} turmas e {len(data['escolas'])} escolas "
-        f"({periodos}) em {target}"
-    )
+    anos = ", ".join(f"{a}º" for a in data["meta"]["anosDisponiveis"])
+    for key, bloco in data.get("byAno", {}).items():
+        periodos = ", ".join(bloco["meta"]["periodosDisponiveis"])
+        print(
+            f"{key}º ano: {len(bloco['turmas'])} turmas, {len(bloco['escolas'])} escolas ({periodos})"
+        )
+    print(f"Gerado dados.js com anos {anos} (padrão {data['meta']['anoPadrao']}º) em {target}")
 
 
 if __name__ == "__main__":
