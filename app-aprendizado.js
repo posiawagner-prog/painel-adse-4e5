@@ -2217,10 +2217,22 @@ function profScaleAtiva() {
   return state.disciplina === "mat" ? PROF_SCALE_MAT : PROF_SCALE_LP;
 }
 
+/** Arredonda como o Excel (0,5 para cima) — exibe a proficiência igual à planilha. */
+function roundHalfUp(value, digits = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return n;
+  const factor = 10 ** digits;
+  const scaled = n * factor;
+  const rounded = (scaled >= 0 ? Math.floor(scaled + 0.5) : Math.ceil(scaled - 0.5)) / factor;
+  return rounded;
+}
+
 function fmtProfScore(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+  // Duas casas, como na coluna PROFICIÊNCIA da planilha (ex.: 289,45).
+  const rounded = roundHalfUp(n, 2);
+  return rounded.toFixed(2).replace(".", ",");
 }
 
 function renderProfScaleLegend() {
@@ -2476,7 +2488,7 @@ function renderProficienciaBars(rows) {
               const row = sorted[ctx.dataIndex];
               const aprend = aprendizadoMeta(row.aprendizado).label;
               const pct = row.pctAcertos != null ? " · " + fmtPct(row.pctAcertos) + " acertos" : "";
-              return Number(ctx.raw).toFixed(1).replace(".", ",") + " pts · " + aprend + pct;
+              return fmtProfScore(ctx.raw) + " pts · " + aprend + pct;
             },
           },
         },

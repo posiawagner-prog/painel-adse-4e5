@@ -87,11 +87,16 @@ def find_proficiencia_cols(ws) -> dict[str, int]:
     all_cols = preferred_cols + [c for c in range(1, ws.max_column + 1) if c not in seen_cols]
 
     def absorb(col: int, header: str) -> None:
+        # Evita colidir APRENDIZADO com PROFICIÊNCIA (ambos podem ter "PROFICI" em textos longos).
         if "ACERTO" in header and "pctAcertos" not in mapping:
             mapping["pctAcertos"] = col
         elif "APRENDIZADO" in header and "aprendizado" not in mapping:
             mapping["aprendizado"] = col
-        elif "PROFICI" in header and "proficiencia" not in mapping:
+        elif (
+            "PROFICI" in header
+            and "APRENDIZ" not in header
+            and "proficiencia" not in mapping
+        ):
             mapping["proficiencia"] = col
         elif header.startswith("NIVEL") and "nivel" not in mapping:
             mapping["nivel"] = col
@@ -289,6 +294,18 @@ def parse_questions(wb, sheet: str) -> tuple[list[str], dict[str, dict]]:
                         pct_raw = None
                     if isinstance(nivel_raw, str) and str(nivel_raw).startswith("="):
                         nivel_raw = None
+                    # Sem cache na coluna PROFICIÊNCIA: usa a média das questões (como AR/AT no Excel)
+                    # e aplica a mesma fórmula da planilha: LP = 325 * %; MAT = 350 * %.
+                    if not isinstance(prof, (int, float)) and questoes:
+                        media_q = media_from_questoes(questoes)
+                        if media_q:
+                            if not isinstance(pct_raw, (int, float)):
+                                pct_raw = media_q
+                            scale = scale_for_disciplina(disciplina)
+                            pct_for_scale = float(pct_raw)
+                            if pct_for_scale <= 1:
+                                pct_for_scale *= 100
+                            prof = scale * (pct_for_scale / 100.0)
                     nivel_num, nivel_label = parse_nivel(nivel_raw)
                     block = build_proficiencia_block(
                         pct_acertos=pct_raw if isinstance(pct_raw, (int, float)) else None,
