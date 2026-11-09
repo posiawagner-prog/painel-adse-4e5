@@ -1820,7 +1820,8 @@ const proficienciaBarLabelsPlugin = {
       ctx.fillStyle = outside;
       ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
       ctx.textAlign = "left";
-      const right = Number(value).toFixed(1).replace(".", ",") + (pct != null ? " · " + fmtPct(pct) : "");
+      const score = Number.isFinite(Number(value)) ? String(roundHalfUp(value, 0)) : "—";
+      const right = score + (pct != null ? " · " + fmtPct(pct) : "");
       ctx.fillText(right, end + 8, bar.y);
     });
     ctx.restore();
@@ -1986,7 +1987,8 @@ function renderProficienciaBars(rows) {
               const row = sorted[ctx.dataIndex];
               const aprend = aprendizadoMeta(row.aprendizado).label;
               const pct = row.pctAcertos != null ? " · " + fmtPct(row.pctAcertos) + " acertos" : "";
-              return Number(ctx.raw).toFixed(1).replace(".", ",") + " pts · " + aprend + pct;
+              const score = Number.isFinite(Number(ctx.raw)) ? String(roundHalfUp(ctx.raw, 0)) : "—";
+              return score + " pts · " + aprend + pct;
             },
           },
         },

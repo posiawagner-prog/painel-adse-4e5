@@ -2230,9 +2230,8 @@ function roundHalfUp(value, digits = 2) {
 function fmtProfScore(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  // Duas casas, como na coluna PROFICIÊNCIA da planilha (ex.: 289,45).
-  const rounded = roundHalfUp(n, 2);
-  return rounded.toFixed(2).replace(".", ",");
+  // Parte inteira arredondada como na planilha (ex.: 289,4 → 289; 283,8 → 284).
+  return String(roundHalfUp(n, 0));
 }
 
 function renderProfScaleLegend() {
