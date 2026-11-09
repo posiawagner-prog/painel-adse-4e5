@@ -2246,20 +2246,22 @@ function renderProfScaleLegend() {
   el.dataset.disciplina = isMat ? "mat" : "lp";
   el.setAttribute("aria-label", `Escala de proficiência — ${ano}º ano · ${disc}`);
   const groupsHtml = bands
-    .map(
-      (group) =>
+    .map((group) => {
+      const color = faixasAtivas().find((f) => f.key === group.band)?.color || "#9a9aa3";
+      return (
         `<div class="prof-scale-group" data-band="${group.band}">` +
         `<span class="prof-scale-title">${group.title}</span>` +
         `<ul class="prof-scale-levels">` +
         group.levels
           .map(
             (lv) =>
-              `<li><span class="niveis-pill" style="--nivel-color:${lv.color}">NÍVEL ${lv.nivel}</span>` +
+              `<li><span class="niveis-pill" style="--nivel-color:${color}">NÍVEL ${lv.nivel}</span>` +
               `<span>${lv.range}</span></li>`
           )
           .join("") +
         `</ul></div>`
-    )
+      );
+    })
     .join("");
   el.innerHTML =
     `<div class="prof-scale-caption"><strong>${ano}º ano · ${disc}</strong><span>${escala}</span></div>` +
