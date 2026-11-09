@@ -1553,10 +1553,15 @@ html[data-theme="dark"] .niveis-table thead th {
   line-height: 1.2;
   margin-bottom: 6px;
 }
+/* Mesma paleta do COR_APREND no JS — uma cor por faixa de aprendizado */
 .prof-scale-group[data-band="insuficiente"] .prof-scale-title { color: #FF3B30; }
 .prof-scale-group[data-band="basico"] .prof-scale-title { color: #FF9F0A; }
 .prof-scale-group[data-band="proficiente"] .prof-scale-title { color: #3D7BFF; }
 .prof-scale-group[data-band="avancado"] .prof-scale-title { color: #30D158; }
+.prof-scale-group[data-band="insuficiente"] .niveis-pill { --nivel-color: #FF3B30; }
+.prof-scale-group[data-band="basico"] .niveis-pill { --nivel-color: #FF9F0A; }
+.prof-scale-group[data-band="proficiente"] .niveis-pill { --nivel-color: #3D7BFF; }
+.prof-scale-group[data-band="avancado"] .niveis-pill { --nivel-color: #30D158; }
 .prof-scale-levels {
   list-style: none;
   margin: 0;

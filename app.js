@@ -5,21 +5,29 @@ const FAIXAS = [
   { key: "excelente", label: "Avançado (≥ 80%)", color: "#00E676", min: 80, max: 101 },
 ];
 
+const COR_APREND = {
+  insuficiente: "#FF3B30",
+  basico: "#FF9F0A",
+  proficiente: "#3D7BFF",
+  avancado: "#30D158",
+};
+
 const APRENDIZADO = [
-  { key: "INSUFICIENTE", label: "Insuficiente", color: "#FF3B30", short: "Insuf." },
-  { key: "BÁSICO", label: "Básico", color: "#FF9F0A", short: "Básico" },
-  { key: "PROFICIENTE", label: "Proficiente", color: "#3D7BFF", short: "Profic." },
-  { key: "AVANÇADO", label: "Avançado", color: "#30D158", short: "Avanç." },
+  { key: "INSUFICIENTE", label: "Insuficiente", color: COR_APREND.insuficiente, short: "Insuf." },
+  { key: "BÁSICO", label: "Básico", color: COR_APREND.basico, short: "Básico" },
+  { key: "PROFICIENTE", label: "Proficiente", color: COR_APREND.proficiente, short: "Profic." },
+  { key: "AVANÇADO", label: "Avançado", color: COR_APREND.avancado, short: "Avanç." },
 ];
 
+/** Cor do nível = cor da faixa de aprendizado (LP: 0–1 / 2–3 / 4–5 / 6+). */
 const NIVEIS_PROF = [
-  { nivel: 0, color: "#FF3B30" },
-  { nivel: 1, color: "#FF6B4A" },
-  { nivel: 2, color: "#FF9F0A" },
-  { nivel: 3, color: "#FFD60A" },
-  { nivel: 4, color: "#5B9AFF" },
-  { nivel: 5, color: "#3D7BFF" },
-  { nivel: 6, color: "#30D158" },
+  { nivel: 0, color: COR_APREND.insuficiente },
+  { nivel: 1, color: COR_APREND.insuficiente },
+  { nivel: 2, color: COR_APREND.basico },
+  { nivel: 3, color: COR_APREND.basico },
+  { nivel: 4, color: COR_APREND.proficiente },
+  { nivel: 5, color: COR_APREND.proficiente },
+  { nivel: 6, color: COR_APREND.avancado },
 ];
 
 const DISCIPLINAS = {

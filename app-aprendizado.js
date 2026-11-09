@@ -2,59 +2,67 @@
  * Faixas = coluna APRENDIZADO sobre PROFICIÊNCIA (BA).
  * LP:  =SE(BA<=149;"INSUFICIENTE";SE(BA<200;"BÁSICO";SE(BA<250;"PROFICIENTE";"AVANÇADO")))
  * MAT: =SE(BA<=174;"INSUFICIENTE";SE(BA<=224;"BÁSICO";SE(BA<=274;"PROFICIENTE";"AVANÇADO")))  (escala 350)
- */
-const FAIXAS_LP = [
-  { key: "insuficiente", label: "Insuficiente (≤ 149)", color: "#FF3B30", aprendizado: "INSUFICIENTE" },
-  { key: "basico", label: "Básico (150–199)", color: "#FF9F0A", aprendizado: "BÁSICO" },
-  { key: "proficiente", label: "Proficiente (200–249)", color: "#3D7BFF", aprendizado: "PROFICIENTE" },
-  { key: "avancado", label: "Avançado (≥ 250)", color: "#30D158", aprendizado: "AVANÇADO" },
-];
-
-const FAIXAS_MAT = [
-  { key: "insuficiente", label: "Insuficiente (≤ 174)", color: "#FF3B30", aprendizado: "INSUFICIENTE" },
-  { key: "basico", label: "Básico (175–224)", color: "#FF9F0A", aprendizado: "BÁSICO" },
-  { key: "proficiente", label: "Proficiente (225–274)", color: "#3D7BFF", aprendizado: "PROFICIENTE" },
-  { key: "avancado", label: "Avançado (≥ 275)", color: "#30D158", aprendizado: "AVANÇADO" },
-];
-
-/**
+ *
  * Escala SAEB 4º/5º ano — faixas de nível × aprendizado (planilhas ADSE).
  * LP (325): Insuf. ≤149 · Básico 150–199 · Profic. 200–249 · Avanç. ≥250
  * MAT (350): Insuf. ≤174 · Básico 175–224 · Profic. 225–274 · Avanç. ≥275
+ *
+ * Mesma cor para todos os níveis da mesma faixa de aprendizado.
  */
+const COR_APREND = {
+  insuficiente: "#FF3B30",
+  basico: "#FF9F0A",
+  proficiente: "#3D7BFF",
+  avancado: "#30D158",
+};
+
+const FAIXAS_LP = [
+  { key: "insuficiente", label: "Insuficiente (≤ 149)", color: COR_APREND.insuficiente, aprendizado: "INSUFICIENTE" },
+  { key: "basico", label: "Básico (150–199)", color: COR_APREND.basico, aprendizado: "BÁSICO" },
+  { key: "proficiente", label: "Proficiente (200–249)", color: COR_APREND.proficiente, aprendizado: "PROFICIENTE" },
+  { key: "avancado", label: "Avançado (≥ 250)", color: COR_APREND.avancado, aprendizado: "AVANÇADO" },
+];
+
+const FAIXAS_MAT = [
+  { key: "insuficiente", label: "Insuficiente (≤ 174)", color: COR_APREND.insuficiente, aprendizado: "INSUFICIENTE" },
+  { key: "basico", label: "Básico (175–224)", color: COR_APREND.basico, aprendizado: "BÁSICO" },
+  { key: "proficiente", label: "Proficiente (225–274)", color: COR_APREND.proficiente, aprendizado: "PROFICIENTE" },
+  { key: "avancado", label: "Avançado (≥ 275)", color: COR_APREND.avancado, aprendizado: "AVANÇADO" },
+];
+
 const PROF_SCALE_LP = [
   {
     band: "insuficiente",
     title: "Insuficiente",
     levels: [
-      { nivel: 0, color: "#FF3B30", range: "0 – 124 pts" },
-      { nivel: 1, color: "#FF6B4A", range: "125 – 149 pts" },
+      { nivel: 0, color: COR_APREND.insuficiente, range: "0 – 124 pts" },
+      { nivel: 1, color: COR_APREND.insuficiente, range: "125 – 149 pts" },
     ],
   },
   {
     band: "basico",
     title: "Básico",
     levels: [
-      { nivel: 2, color: "#FF9F0A", range: "150 – 174 pts" },
-      { nivel: 3, color: "#FFD60A", range: "175 – 199 pts" },
+      { nivel: 2, color: COR_APREND.basico, range: "150 – 174 pts" },
+      { nivel: 3, color: COR_APREND.basico, range: "175 – 199 pts" },
     ],
   },
   {
     band: "proficiente",
     title: "Proficiente",
     levels: [
-      { nivel: 4, color: "#5B9AFF", range: "200 – 224 pts" },
-      { nivel: 5, color: "#3D7BFF", range: "225 – 249 pts" },
+      { nivel: 4, color: COR_APREND.proficiente, range: "200 – 224 pts" },
+      { nivel: 5, color: COR_APREND.proficiente, range: "225 – 249 pts" },
     ],
   },
   {
     band: "avancado",
     title: "Avançado",
     levels: [
-      { nivel: 6, color: "#30D158", range: "250 – 274 pts" },
-      { nivel: 7, color: "#00C2A0", range: "275 – 299 pts" },
-      { nivel: 8, color: "#00A3FF", range: "300 – 324 pts" },
-      { nivel: 9, color: "#7C5CFF", range: "≥ 325 pts" },
+      { nivel: 6, color: COR_APREND.avancado, range: "250 – 274 pts" },
+      { nivel: 7, color: COR_APREND.avancado, range: "275 – 299 pts" },
+      { nivel: 8, color: COR_APREND.avancado, range: "300 – 324 pts" },
+      { nivel: 9, color: COR_APREND.avancado, range: "≥ 325 pts" },
     ],
   },
 ];
@@ -64,35 +72,35 @@ const PROF_SCALE_MAT = [
     band: "insuficiente",
     title: "Insuficiente",
     levels: [
-      { nivel: 0, color: "#FF3B30", range: "0 – 124 pts" },
-      { nivel: 1, color: "#FF6B4A", range: "125 – 149 pts" },
-      { nivel: 2, color: "#FF9F0A", range: "150 – 174 pts" },
+      { nivel: 0, color: COR_APREND.insuficiente, range: "0 – 124 pts" },
+      { nivel: 1, color: COR_APREND.insuficiente, range: "125 – 149 pts" },
+      { nivel: 2, color: COR_APREND.insuficiente, range: "150 – 174 pts" },
     ],
   },
   {
     band: "basico",
     title: "Básico",
     levels: [
-      { nivel: 3, color: "#FFD60A", range: "175 – 199 pts" },
-      { nivel: 4, color: "#FFB340", range: "200 – 224 pts" },
+      { nivel: 3, color: COR_APREND.basico, range: "175 – 199 pts" },
+      { nivel: 4, color: COR_APREND.basico, range: "200 – 224 pts" },
     ],
   },
   {
     band: "proficiente",
     title: "Proficiente",
     levels: [
-      { nivel: 5, color: "#5B9AFF", range: "225 – 249 pts" },
-      { nivel: 6, color: "#3D7BFF", range: "250 – 274 pts" },
+      { nivel: 5, color: COR_APREND.proficiente, range: "225 – 249 pts" },
+      { nivel: 6, color: COR_APREND.proficiente, range: "250 – 274 pts" },
     ],
   },
   {
     band: "avancado",
     title: "Avançado",
     levels: [
-      { nivel: 7, color: "#30D158", range: "275 – 299 pts" },
-      { nivel: 8, color: "#00C2A0", range: "300 – 324 pts" },
-      { nivel: 9, color: "#00A3FF", range: "325 – 349 pts" },
-      { nivel: 10, color: "#7C5CFF", range: "≥ 350 pts" },
+      { nivel: 7, color: COR_APREND.avancado, range: "275 – 299 pts" },
+      { nivel: 8, color: COR_APREND.avancado, range: "300 – 324 pts" },
+      { nivel: 9, color: COR_APREND.avancado, range: "325 – 349 pts" },
+      { nivel: 10, color: COR_APREND.avancado, range: "≥ 350 pts" },
     ],
   },
 ];
@@ -101,10 +109,10 @@ const PROF_SCALE_MAT = [
 const FAIXAS = FAIXAS_LP;
 
 const APRENDIZADO = [
-  { key: "INSUFICIENTE", label: "Insuficiente", color: "#FF3B30", short: "Insuf." },
-  { key: "BÁSICO", label: "Básico", color: "#FF9F0A", short: "Básico" },
-  { key: "PROFICIENTE", label: "Proficiente", color: "#3D7BFF", short: "Profic." },
-  { key: "AVANÇADO", label: "Avançado", color: "#30D158", short: "Avanç." },
+  { key: "INSUFICIENTE", label: "Insuficiente", color: COR_APREND.insuficiente, short: "Insuf." },
+  { key: "BÁSICO", label: "Básico", color: COR_APREND.basico, short: "Básico" },
+  { key: "PROFICIENTE", label: "Proficiente", color: COR_APREND.proficiente, short: "Profic." },
+  { key: "AVANÇADO", label: "Avançado", color: COR_APREND.avancado, short: "Avanç." },
 ];
 
 /**
@@ -192,18 +200,19 @@ function descricaoTooltipForQuestion(q, group = "lp") {
   return formatDescricaoTooltip(descritorEntryForQuestion(q, group));
 }
 
+/** Lista de níveis (a cor efetiva vem de aprendizadoFromNivel / niveisAtivos). */
 const NIVEIS_PROF = [
-  { nivel: 0, color: "#FF3B30" },
-  { nivel: 1, color: "#FF6B4A" },
-  { nivel: 2, color: "#FF9F0A" },
-  { nivel: 3, color: "#FFD60A" },
-  { nivel: 4, color: "#5B9AFF" },
-  { nivel: 5, color: "#3D7BFF" },
-  { nivel: 6, color: "#30D158" },
-  { nivel: 7, color: "#00C2A0" },
-  { nivel: 8, color: "#00A3FF" },
-  { nivel: 9, color: "#7C5CFF" },
-  { nivel: 10, color: "#BF5AF2" },
+  { nivel: 0 },
+  { nivel: 1 },
+  { nivel: 2 },
+  { nivel: 3 },
+  { nivel: 4 },
+  { nivel: 5 },
+  { nivel: 6 },
+  { nivel: 7 },
+  { nivel: 8 },
+  { nivel: 9 },
+  { nivel: 10 },
 ];
 
 /** Disciplina usada nas faixas/níveis SAEB (geral e LP → português). */
@@ -217,7 +226,10 @@ function faixasAtivas() {
 
 function niveisAtivos() {
   const max = disciplinaProficiencia() === "mat" ? 10 : 9;
-  return NIVEIS_PROF.filter((n) => n.nivel <= max);
+  return NIVEIS_PROF.filter((n) => n.nivel <= max).map((n) => ({
+    nivel: n.nivel,
+    color: aprendizadoFromNivel(n.nivel).color,
+  }));
 }
 
 const DISCIPLINAS = {
@@ -2247,7 +2259,7 @@ function renderProfScaleLegend() {
   el.setAttribute("aria-label", `Escala de proficiência — ${ano}º ano · ${disc}`);
   const groupsHtml = bands
     .map((group) => {
-      const color = faixasAtivas().find((f) => f.key === group.band)?.color || "#9a9aa3";
+      const color = COR_APREND[group.band] || group.levels[0]?.color || "#9a9aa3";
       return (
         `<div class="prof-scale-group" data-band="${group.band}">` +
         `<span class="prof-scale-title">${group.title}</span>` +
