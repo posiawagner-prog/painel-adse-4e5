@@ -725,6 +725,59 @@ function applyTheme(theme) {
   }
 }
 
+function isFullscreenActive() {
+  return Boolean(
+    document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement
+  );
+}
+
+function syncFullscreenUi() {
+  const active = isFullscreenActive();
+  const btn = document.getElementById("btnFullscreen");
+  if (btn) {
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+    btn.title = active ? "Sair da tela cheia (Esc)" : "Tela cheia";
+    btn.setAttribute("aria-label", active ? "Sair da tela cheia" : "Entrar em tela cheia");
+    const expand = btn.querySelector(".fs-icon-expand");
+    const compress = btn.querySelector(".fs-icon-compress");
+    if (expand) expand.hidden = active;
+    if (compress) compress.hidden = !active;
+  }
+  requestAnimationFrame(() => resizeVisibleCharts());
+}
+
+async function enterFullscreen() {
+  const root = document.documentElement;
+  try {
+    if (root.requestFullscreen) await root.requestFullscreen();
+    else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+    else if (root.msRequestFullscreen) root.msRequestFullscreen();
+  } catch (_) {
+    /* Permissão negada / API indisponível */
+  }
+  syncFullscreenUi();
+}
+
+async function exitFullscreen() {
+  try {
+    if (!isFullscreenActive()) return;
+    if (document.exitFullscreen) await document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.msExitFullscreen) document.msExitFullscreen();
+  } catch (_) {
+    /* ignore */
+  }
+  syncFullscreenUi();
+}
+
+async function toggleFullscreen() {
+  if (isFullscreenActive()) await exitFullscreen();
+  else await enterFullscreen();
+}
+
 function chartDefaults() {
   const isLight = currentTheme() === "light";
   const ink = "rgb(0, 0, 0)";
@@ -2222,6 +2275,22 @@ function bindEvents() {
   document.getElementById("btnTheme").addEventListener("click", () => {
     applyTheme(currentTheme() === "light" ? "dark" : "light");
     render();
+  });
+
+  const onFullscreenClick = (e) => {
+    e.preventDefault();
+    toggleFullscreen();
+  };
+  document.getElementById("btnFullscreen")?.addEventListener("click", onFullscreenClick);
+  document.addEventListener("fullscreenchange", syncFullscreenUi);
+  document.addEventListener("webkitfullscreenchange", syncFullscreenUi);
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "f" || e.key === "F") && (e.altKey || e.ctrlKey) && !e.metaKey) {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      e.preventDefault();
+      toggleFullscreen();
+    }
   });
 
   document.getElementById("btnResetAll").addEventListener("click", () => {

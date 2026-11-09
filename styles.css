@@ -292,10 +292,14 @@ html[data-theme="light"] .theme-switch-knob {
   outline-offset: 3px;
 }
 
-/* Tela cheia (topbar): contraste forte por tema; layout/rolagem inalterados */
+/* Tela cheia (topbar): sempre visível, contraste forte por tema */
 #btnFullscreen {
+  display: grid !important;
+  place-items: center;
+  flex-shrink: 0;
   color: #141418;
   border: 2px solid #141418;
+  background: var(--card);
 }
 html[data-theme="dark"] #btnFullscreen {
   color: #5b9aff;
@@ -1774,8 +1778,25 @@ html[data-theme="dark"] .niveis-table thead th {
     grid-template-columns: 1fr !important;
   }
 
-  .topbar-actions .icon-btn:not(#btnTheme):not(#btnFullscreen) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .topbar-actions {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .topbar-actions .avatar,
+  .topbar-actions .icon-btn:not(#btnFullscreen) {
     display: none;
+  }
+
+  #btnFullscreen {
+    display: grid !important;
+    width: 36px;
+    height: 36px;
   }
 
   .hero p {

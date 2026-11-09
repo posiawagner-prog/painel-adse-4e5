@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=124" />
+  <link rel="stylesheet" href="styles.css?v=125" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -77,6 +77,14 @@
       </label>
       <div class="topbar-date" id="todayLabel"></div>
       <div class="topbar-actions">
+        <button type="button" class="icon-btn" id="btnFullscreen" title="Tela cheia (Esc para sair)" aria-pressed="false" aria-label="Entrar em tela cheia">
+          <svg class="fs-icon-expand" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 3H4v4M16 3h4v4M8 21H4v-4M16 21h4v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="fs-icon-compress" viewBox="0 0 24 24" fill="none" aria-hidden="true" hidden>
+            <path d="M9 3v4H5M15 3v4h4M9 21v-4H5M15 21v-4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button type="button" class="theme-switch" id="btnTheme" role="switch" aria-checked="false" aria-label="Ativar modo claro" title="Modo escuro">
           <span class="theme-switch-track"><span class="theme-switch-knob"></span></span>
         </button>
@@ -354,6 +362,6 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="dados.js?v=13"></script>
-  <script src="app.js?v=95"></script>
+  <script src="app.js?v=96"></script>
 </body>
 </html>
