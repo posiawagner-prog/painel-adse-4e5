@@ -5,16 +5,96 @@
  */
 const FAIXAS_LP = [
   { key: "insuficiente", label: "Insuficiente (≤ 149)", color: "#FF3B30", aprendizado: "INSUFICIENTE" },
-  { key: "basico", label: "Básico (150–199)", color: "#FF9500", aprendizado: "BÁSICO" },
-  { key: "proficiente", label: "Proficiente (200–249)", color: "#FFD60A", aprendizado: "PROFICIENTE" },
-  { key: "avancado", label: "Avançado (≥ 250)", color: "#00E676", aprendizado: "AVANÇADO" },
+  { key: "basico", label: "Básico (150–199)", color: "#FF9F0A", aprendizado: "BÁSICO" },
+  { key: "proficiente", label: "Proficiente (200–249)", color: "#3D7BFF", aprendizado: "PROFICIENTE" },
+  { key: "avancado", label: "Avançado (≥ 250)", color: "#30D158", aprendizado: "AVANÇADO" },
 ];
 
 const FAIXAS_MAT = [
   { key: "insuficiente", label: "Insuficiente (≤ 174)", color: "#FF3B30", aprendizado: "INSUFICIENTE" },
-  { key: "basico", label: "Básico (175–224)", color: "#FF9500", aprendizado: "BÁSICO" },
-  { key: "proficiente", label: "Proficiente (225–274)", color: "#FFD60A", aprendizado: "PROFICIENTE" },
-  { key: "avancado", label: "Avançado (≥ 275)", color: "#00E676", aprendizado: "AVANÇADO" },
+  { key: "basico", label: "Básico (175–224)", color: "#FF9F0A", aprendizado: "BÁSICO" },
+  { key: "proficiente", label: "Proficiente (225–274)", color: "#3D7BFF", aprendizado: "PROFICIENTE" },
+  { key: "avancado", label: "Avançado (≥ 275)", color: "#30D158", aprendizado: "AVANÇADO" },
+];
+
+/**
+ * Escala SAEB 4º/5º ano — faixas de nível × aprendizado (planilhas ADSE).
+ * LP (325): Insuf. ≤149 · Básico 150–199 · Profic. 200–249 · Avanç. ≥250
+ * MAT (350): Insuf. ≤174 · Básico 175–224 · Profic. 225–274 · Avanç. ≥275
+ */
+const PROF_SCALE_LP = [
+  {
+    band: "insuficiente",
+    title: "Insuficiente",
+    levels: [
+      { nivel: 0, color: "#FF3B30", range: "0 – 124 pts" },
+      { nivel: 1, color: "#FF6B4A", range: "125 – 149 pts" },
+    ],
+  },
+  {
+    band: "basico",
+    title: "Básico",
+    levels: [
+      { nivel: 2, color: "#FF9F0A", range: "150 – 174 pts" },
+      { nivel: 3, color: "#FFD60A", range: "175 – 199 pts" },
+    ],
+  },
+  {
+    band: "proficiente",
+    title: "Proficiente",
+    levels: [
+      { nivel: 4, color: "#5B9AFF", range: "200 – 224 pts" },
+      { nivel: 5, color: "#3D7BFF", range: "225 – 249 pts" },
+    ],
+  },
+  {
+    band: "avancado",
+    title: "Avançado",
+    levels: [
+      { nivel: 6, color: "#30D158", range: "250 – 274 pts" },
+      { nivel: 7, color: "#00C2A0", range: "275 – 299 pts" },
+      { nivel: 8, color: "#00A3FF", range: "300 – 324 pts" },
+      { nivel: 9, color: "#7C5CFF", range: "≥ 325 pts" },
+    ],
+  },
+];
+
+const PROF_SCALE_MAT = [
+  {
+    band: "insuficiente",
+    title: "Insuficiente",
+    levels: [
+      { nivel: 0, color: "#FF3B30", range: "0 – 124 pts" },
+      { nivel: 1, color: "#FF6B4A", range: "125 – 149 pts" },
+      { nivel: 2, color: "#FF9F0A", range: "150 – 174 pts" },
+    ],
+  },
+  {
+    band: "basico",
+    title: "Básico",
+    levels: [
+      { nivel: 3, color: "#FFD60A", range: "175 – 199 pts" },
+      { nivel: 4, color: "#FFB340", range: "200 – 224 pts" },
+    ],
+  },
+  {
+    band: "proficiente",
+    title: "Proficiente",
+    levels: [
+      { nivel: 5, color: "#5B9AFF", range: "225 – 249 pts" },
+      { nivel: 6, color: "#3D7BFF", range: "250 – 274 pts" },
+    ],
+  },
+  {
+    band: "avancado",
+    title: "Avançado",
+    levels: [
+      { nivel: 7, color: "#30D158", range: "275 – 299 pts" },
+      { nivel: 8, color: "#00C2A0", range: "300 – 324 pts" },
+      { nivel: 9, color: "#00A3FF", range: "325 – 349 pts" },
+      { nivel: 10, color: "#7C5CFF", range: "≥ 350 pts" },
+    ],
+  },
 ];
 
 /** Compat: default = LP (visão geral / português). Preferir faixasAtivas(). */
@@ -2132,6 +2212,40 @@ function proficienciaRows() {
   });
 }
 
+function profScaleAtiva() {
+  return disciplinaProficiencia() === "mat" ? PROF_SCALE_MAT : PROF_SCALE_LP;
+}
+
+function fmtProfScore(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+}
+
+function renderProfScaleLegend() {
+  const el = document.getElementById("profScaleLegend");
+  if (!el) return;
+  const ano = state.ano || anoPadrao();
+  const disc = disciplinaProficiencia() === "mat" ? "Matemática" : "Língua Portuguesa";
+  el.setAttribute("aria-label", `Escala de proficiência — ${ano}º ano · ${disc}`);
+  el.innerHTML = profScaleAtiva()
+    .map(
+      (group) =>
+        `<div class="prof-scale-group" data-band="${group.band}">` +
+        `<span class="prof-scale-title">${group.title}</span>` +
+        `<ul class="prof-scale-levels">` +
+        group.levels
+          .map(
+            (lv) =>
+              `<li><span class="niveis-pill" style="--nivel-color:${lv.color}">NÍVEL ${lv.nivel}</span>` +
+              `<span>${lv.range}</span></li>`
+          )
+          .join("") +
+        `</ul></div>`
+    )
+    .join("");
+}
+
 const proficienciaBarLabelsPlugin = {
   id: "proficienciaBarLabels",
   afterDatasetsDraw(chart) {
@@ -2139,7 +2253,7 @@ const proficienciaBarLabelsPlugin = {
     if (!meta?.data?.length) return;
     const { ctx } = chart;
     const dataset = chart.data.datasets[0];
-    const { ink, outside } = chartDefaults();
+    const { outside } = chartDefaults();
     ctx.save();
     meta.data.forEach((bar, index) => {
       const value = dataset.data[index];
@@ -2147,16 +2261,35 @@ const proficienciaBarLabelsPlugin = {
       const pct = dataset.pcts?.[index];
       const start = Math.min(bar.x, bar.base);
       const end = Math.max(bar.x, bar.base);
+      const width = end - start;
+      const profText = fmtProfScore(value);
+      const pctText = pct != null ? fmtPct(pct) : "";
+
       ctx.textBaseline = "middle";
-      ctx.fillStyle = ink;
-      ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
-      ctx.textAlign = "left";
-      if (nivel) ctx.fillText(nivel, start + 10, bar.y);
-      ctx.fillStyle = outside;
-      ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
-      ctx.textAlign = "left";
-      const right = Number(value).toFixed(1).replace(".", ",") + (pct != null ? " · " + fmtPct(pct) : "");
-      ctx.fillText(right, end + 8, bar.y);
+
+      // Nível à esquerda dentro da barra (texto escuro sobre a cor)
+      if (nivel && width > 70) {
+        ctx.fillStyle = "#141418";
+        ctx.font = "700 11px 'DM Sans', system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(nivel, start + 10, bar.y);
+      }
+
+      // Pontuação à direita dentro da barra
+      if (width > 48) {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText(profText, end - 8, bar.y);
+      }
+
+      // % de acertos fora da barra
+      if (pctText) {
+        ctx.fillStyle = outside;
+        ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(pctText, end + 8, bar.y);
+      }
     });
     ctx.restore();
   },
@@ -2253,6 +2386,7 @@ function renderProficienciaBars(rows) {
   const wrap = document.getElementById("chartProficienciaWrap");
   const empty = document.getElementById("profEmpty");
   const canvas = document.getElementById("chartProficiencia");
+  const scaleLegend = document.getElementById("profScaleLegend");
   const sorted = [...rows]
     .filter((r) => r.proficiencia != null)
     .sort((a, b) => (b.proficiencia || 0) - (a.proficiencia || 0));
@@ -2260,6 +2394,7 @@ function renderProficienciaBars(rows) {
   if (!sorted.length) {
     if (wrap) wrap.hidden = true;
     if (canvas) canvas.hidden = true;
+    if (scaleLegend) scaleLegend.hidden = true;
     if (empty) {
       empty.hidden = false;
       empty.textContent =
@@ -2271,6 +2406,10 @@ function renderProficienciaBars(rows) {
   }
   if (wrap) wrap.hidden = false;
   if (canvas) canvas.hidden = false;
+  if (scaleLegend) {
+    scaleLegend.hidden = false;
+    renderProfScaleLegend();
+  }
   if (empty) empty.hidden = true;
 
   const { muted } = chartDefaults();
