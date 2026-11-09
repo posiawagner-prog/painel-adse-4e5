@@ -3099,16 +3099,96 @@ async function withFullChartCapture(target, run) {
   }
 }
 
+function hexToRgba(hex, alpha = 1) {
+  const raw = String(hex || "").trim().replace("#", "");
+  if (raw.length !== 6 && raw.length !== 3) return `rgba(0,0,0,${alpha})`;
+  const full =
+    raw.length === 3
+      ? raw
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : raw;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  if (![r, g, b].every(Number.isFinite)) return `rgba(0,0,0,${alpha})`;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/** html2canvas 1.4 não entende color-mix()/color() — remove e troca por rgba sólido. */
+function sanitizeCloneForHtml2Canvas(clonedDoc) {
+  const sheets = [...clonedDoc.querySelectorAll('style, link[rel="stylesheet"]')];
+  sheets.forEach((node) => {
+    if (node.tagName === "STYLE" && /color-mix\s*\(/i.test(node.textContent || "")) {
+      node.textContent = (node.textContent || "").replace(/color-mix\([^)]*\)/gi, "transparent");
+    }
+  });
+
+  try {
+    [...clonedDoc.styleSheets].forEach((sheet) => {
+      try {
+        const rules = sheet.cssRules;
+        if (!rules) return;
+        for (let i = rules.length - 1; i >= 0; i -= 1) {
+          const text = rules[i]?.cssText || "";
+          if (/color-mix\s*\(/i.test(text)) sheet.deleteRule(i);
+        }
+      } catch {
+        /* stylesheet cross-origin */
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+
+  const fixVar = (el, varName, alphaBg = 0.28, alphaBorder = 0.55) => {
+    const color =
+      el.style.getPropertyValue(varName).trim() ||
+      getComputedStyle(el).getPropertyValue(varName).trim();
+    if (!color || color.startsWith("color")) return;
+    el.style.background = hexToRgba(color, alphaBg);
+    el.style.borderColor = hexToRgba(color, alphaBorder);
+  };
+
+  clonedDoc.querySelectorAll(".niveis-pill").forEach((el) => fixVar(el, "--nivel-color", 0.28, 0.55));
+  clonedDoc.querySelectorAll(".status-card").forEach((el) => fixVar(el, "--status-color", 0.16, 0.28));
+  clonedDoc.querySelectorAll(".questoes-legend-item, [style*='--faixa-color']").forEach((el) =>
+    fixVar(el, "--faixa-color", 0.14, 0.28)
+  );
+  clonedDoc.querySelectorAll(".prof-kpi, [style*='--prof-color']").forEach((el) =>
+    fixVar(el, "--prof-color", 0.18, 0.4)
+  );
+  clonedDoc.querySelectorAll(".tag-ranking, [style*='--tag']").forEach((el) =>
+    fixVar(el, "--tag", 0.18, 0.4)
+  );
+
+  const safe = clonedDoc.createElement("style");
+  safe.setAttribute("data-print-safe", "1");
+  safe.textContent = `
+    .niveis-pill, .status-card, .questoes-legend-item, .prof-kpi, .tag-ranking,
+    .chart-tab, .prof-scale-legend, .prof-nivel, .legend li {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    .prof-scale-group[data-band="insuficiente"] .niveis-pill { background: rgba(255,59,48,.28) !important; border-color: rgba(255,59,48,.55) !important; }
+    .prof-scale-group[data-band="basico"] .niveis-pill { background: rgba(255,159,10,.28) !important; border-color: rgba(255,159,10,.55) !important; }
+    .prof-scale-group[data-band="proficiente"] .niveis-pill { background: rgba(61,123,255,.28) !important; border-color: rgba(61,123,255,.55) !important; }
+    .prof-scale-group[data-band="avancado"] .niveis-pill { background: rgba(48,209,88,.28) !important; border-color: rgba(48,209,88,.55) !important; }
+  `;
+  clonedDoc.head.appendChild(safe);
+}
+
 async function capturePrintCanvas(target) {
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#ffffff";
   return withFullChartCapture(target, async (el) => {
     const width = Math.ceil(Math.max(el.scrollWidth, el.offsetWidth));
     const height = Math.ceil(Math.max(el.scrollHeight, el.offsetHeight));
-    return html2canvas(el, {
-      scale: 2,
+    const opts = {
+      scale: Math.min(2, 4096 / Math.max(width, height, 1)),
       useCORS: true,
-      allowTaint: true,
-      backgroundColor: bg,
+      allowTaint: false,
+      backgroundColor: bg.startsWith("color") ? "#ffffff" : bg || "#ffffff",
       logging: false,
       width,
       height,
@@ -3118,7 +3198,21 @@ async function capturePrintCanvas(target) {
       scrollY: 0,
       x: 0,
       y: 0,
-    });
+      onclone: (clonedDoc) => sanitizeCloneForHtml2Canvas(clonedDoc),
+    };
+    try {
+      return await html2canvas(el, opts);
+    } catch (err) {
+      // Retry sem limites explícitos (alguns layouts quebram width/height fixos).
+      return await html2canvas(el, {
+        ...opts,
+        width: undefined,
+        height: undefined,
+        windowWidth: undefined,
+        windowHeight: undefined,
+        scale: 1.5,
+      });
+    }
   });
 }
 

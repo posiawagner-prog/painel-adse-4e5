@@ -1473,8 +1473,9 @@ html[data-theme="dark"] .chart-tab-value {
   letter-spacing: 0.02em;
   white-space: nowrap;
   color: #141418;
-  background: color-mix(in srgb, var(--nivel-color) 28%, transparent);
-  border: 1px solid color-mix(in srgb, var(--nivel-color) 55%, transparent);
+  /* Sem color-mix: html2canvas 1.4 não interpreta e quebra a impressão/PDF */
+  background: linear-gradient(rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.72)), var(--nivel-color, #9a9aa3);
+  border: 1px solid var(--nivel-color, #9a9aa3);
 }
 .niveis-dot {
   width: 8px;
@@ -1499,7 +1500,7 @@ html[data-theme="dark"] .niveis-table thead th {
   padding: 12px 14px;
   border: 1px solid #141418;
   border-radius: 14px;
-  background: var(--soft, color-mix(in srgb, var(--card) 92%, var(--text) 4%));
+  background: var(--soft, #f3f3f5);
 }
 .prof-scale-legend[hidden] {
   display: none !important;
