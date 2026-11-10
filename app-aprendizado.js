@@ -225,7 +225,8 @@ function faixasAtivas() {
 }
 
 function niveisAtivos() {
-  const max = disciplinaProficiencia() === "mat" ? 10 : 9;
+  // MAT e geral (média de níveis) podem chegar a 10; LP sozinho vai até 9.
+  const max = state.disciplina === "lp" ? 9 : 10;
   return NIVEIS_PROF.filter((n) => n.nivel <= max).map((n) => ({
     nivel: n.nivel,
     color: aprendizadoFromNivel(n.nivel).color,
@@ -373,6 +374,74 @@ function faixaFromProficiencia(ba, disciplina = disciplinaProficiencia()) {
   return faixas[3];
 }
 
+/** Cortes % SAEB (2 casas) — base da legenda de questões e da escala combinada. */
+function saebPctCutoffs(disciplina) {
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const scale = disciplina === "mat" ? 350 : 325;
+  const toPct = (score) => (score / scale) * 100;
+  const maxPctExclusive = (scoreLimite) => {
+    const exact = toPct(scoreLimite);
+    const cand = round2(exact);
+    return (cand / 100) * scale < scoreLimite ? cand : round2(cand - 0.01);
+  };
+  const maxPctInclusive = (scoreLimite) => round2(toPct(scoreLimite));
+
+  if (disciplina === "mat") {
+    return {
+      fimInsuf: maxPctInclusive(174),
+      fimBasico: maxPctInclusive(224),
+      fimProf: maxPctInclusive(274),
+    };
+  }
+  if (disciplina === "geral") {
+    const lp = saebPctCutoffs("lp");
+    const mat = saebPctCutoffs("mat");
+    return {
+      fimInsuf: round2((lp.fimInsuf + mat.fimInsuf) / 2),
+      fimBasico: round2((lp.fimBasico + mat.fimBasico) / 2),
+      fimProf: round2((lp.fimProf + mat.fimProf) / 2),
+    };
+  }
+  return {
+    fimInsuf: maxPctInclusive(149),
+    fimBasico: maxPctExclusive(200),
+    fimProf: maxPctExclusive(250),
+  };
+}
+
+/** Classifica um percentual pelas faixas SAEB (LP, MAT ou média LP+MAT). */
+function faixaFromPct(pct, disciplina = "lp") {
+  const faixas = disciplina === "mat" ? FAIXAS_MAT : FAIXAS_LP;
+  const value = Number(pct);
+  if (!Number.isFinite(value)) return faixas[0];
+  const { fimInsuf, fimBasico, fimProf } = saebPctCutoffs(disciplina);
+  if (value <= fimInsuf) return faixas[0];
+  if (value <= fimBasico) return faixas[1];
+  if (value <= fimProf) return faixas[2];
+  return faixas[3];
+}
+
+/** Proficiência da turma como % da escala SAEB (325 LP / 350 MAT). */
+function proficienciaPctTurma(row, disciplina) {
+  const block = proficienciaBlock(row, disciplina);
+  if (block?.proficiencia == null) return null;
+  const scale = disciplina === "mat" ? 350 : 325;
+  const score = Number(block.proficiencia);
+  if (!Number.isFinite(score)) return null;
+  return (score / scale) * 100;
+}
+
+/** Média das % de proficiência LP e MAT (filtro Português + Matemática). */
+function proficienciaPctMediaGeral(row) {
+  const lp = proficienciaPctTurma(row, "lp");
+  const mat = proficienciaPctTurma(row, "mat");
+  if (lp != null && mat != null) return (lp + mat) / 2;
+  if (lp != null) return lp;
+  if (mat != null) return mat;
+  if (row?.mediaGeral != null && Number.isFinite(Number(row.mediaGeral))) return Number(row.mediaGeral);
+  return null;
+}
+
 function faixaFromAprendizadoLabel(label) {
   const faixas = faixasAtivas();
   const norm = String(label || "")
@@ -407,6 +476,22 @@ function proficienciaScoreTurma(row) {
 
 function faixaFromRow(row) {
   const faixas = faixasAtivas();
+
+  // Português + Matemática: média das % de proficiência LP e MAT
+  if (state.disciplina === "geral") {
+    if (state.visao === "escolas" && !row?.turma) {
+      const turmas = turmasForEscolaNome(row.escola);
+      const pcts = turmas.map((t) => proficienciaPctMediaGeral(t)).filter((v) => v != null);
+      if (pcts.length) {
+        const media = pcts.reduce((acc, v) => acc + v, 0) / pcts.length;
+        return faixaFromPct(media, "geral");
+      }
+    }
+    const pct = proficienciaPctMediaGeral(row);
+    if (pct != null) return faixaFromPct(pct, "geral");
+    return faixas[0];
+  }
+
   if (state.visao === "escolas" && !row?.turma) {
     const turmas = turmasForEscolaNome(row.escola);
     const scores = turmas.map((t) => proficienciaScoreTurma(t)).filter((v) => v != null);
@@ -1561,8 +1646,16 @@ function renderDonut(rows) {
     },
     plugins: [donutSliceLabelsPlugin],
   });
-  const discLabel = disciplinaProficiencia() === "mat" ? "Matemática" : "Língua Portuguesa";
-  const escala = disciplinaProficiencia() === "mat" ? "≤174 / 175–224 / 225–274 / ≥275" : "≤149 / 150–199 / 200–249 / ≥250";
+  let discLabel = "Língua Portuguesa";
+  let escala = "≤149 / 150–199 / 200–249 / ≥250";
+  if (state.disciplina === "mat") {
+    discLabel = "Matemática";
+    escala = "≤174 / 175–224 / 225–274 / ≥275";
+  } else if (state.disciplina === "geral") {
+    discLabel = "média LP + MAT";
+    const c = saebPctCutoffs("geral");
+    escala = `até ${fmtPctLegenda(c.fimInsuf)} / ${fmtPctLegenda(c.fimBasico)} / ${fmtPctLegenda(c.fimProf)}`;
+  }
   document.getElementById("chartDonutTitle").textContent = "Faixas de desempenho";
   document.getElementById("chartDonutSub").textContent =
     `${state.ano || anoPadrao()}º ano · ${DISCIPLINAS[state.disciplina]} · proficiência ${discLabel} (${escala})`;
@@ -1623,39 +1716,20 @@ function renderRankingEscolas() {
   const wrap = document.getElementById("chartRankingEscolasWrap");
   wrap.style.height = `${Math.max(520, sorted.length * 34)}px`;
 
-  const multi = sorted.filter((row) => isMultiTurmaEscola(row.escola));
-  const unica = sorted.filter((row) => !isMultiTurmaEscola(row.escola));
-  const aggMulti = multi.length ? aggregate(multi) : null;
-  const aggUnica = unica.length ? aggregate(unica) : null;
-  const mediaMulti =
-    aggMulti &&
-    (state.disciplina === "lp"
-      ? aggMulti.mediaLp
-      : state.disciplina === "mat"
-        ? aggMulti.mediaMat
-        : aggMulti.mediaGeral);
-  const mediaUnica =
-    aggUnica &&
-    (state.disciplina === "lp"
-      ? aggUnica.mediaLp
-      : state.disciplina === "mat"
-        ? aggUnica.mediaMat
-        : aggUnica.mediaGeral);
-
+  const corHint =
+    state.disciplina === "geral"
+      ? "cores = média LP + MAT"
+      : "cores = faixa de aprendizado";
   document.getElementById("chartRankingEscolasTitle").textContent = "Ranking por escola";
   document.getElementById("chartRankingEscolasSub").textContent =
-    `${DISCIPLINAS[state.disciplina]} · ${sorted.length} escolas · turmas agrupadas · clique para filtrar`;
-
-  const legend = document.getElementById("rankingEscolasLegend");
-  legend.innerHTML = [
-    `<li><span class="swatch" style="background:#FFB020"></span><span>Várias turmas (${multi.length})${mediaMulti != null ? ` · ${fmtPct(mediaMulti)}` : ""}</span></li>`,
-    `<li><span class="swatch" style="background:#3D7BFF"></span><span>Turma única (${unica.length})${mediaUnica != null ? ` · ${fmtPct(mediaUnica)}` : ""}</span></li>`,
-  ].join("");
+    `${DISCIPLINAS[state.disciplina]} · ${sorted.length} escolas · turmas agrupadas · ${corHint} · clique para filtrar`;
 
   const ctx = document.getElementById("chartRankingEscolas");
   const labels = sorted.map((row) => labelEscolaRow(row));
   const medias = sorted.map((row) => mediaEscolaRow(row));
   const ranks = competitionRanks(medias);
+  const faixasRows = sorted.map((row) => faixaFromRow(row));
+  renderRankingFaixasLegend("rankingEscolasLegend", faixasRows);
   charts.rankingEscolas = new Chart(ctx, {
     type: "bar",
     data: {
@@ -1666,12 +1740,8 @@ function renderRankingEscolas() {
           data: medias,
           alunos: sorted.map((row) => metricAvaliados(row)),
           ranks,
-          backgroundColor: sorted.map((row) => {
-            const faixa = faixaFromRow(row);
-            return isMultiTurmaEscola(row.escola) ? faixa.color : `${faixa.color}cc`;
-          }),
-          borderColor: sorted.map((row) => (isMultiTurmaEscola(row.escola) ? "#FFB020" : "transparent")),
-          borderWidth: sorted.map((row) => (isMultiTurmaEscola(row.escola) ? 2 : 0)),
+          // Mesma lógica da visão por turma: cor = faixa (em geral = média LP+MAT)
+          backgroundColor: faixasRows.map((f) => f.color),
           borderRadius: 8,
         },
       ],
@@ -1696,8 +1766,10 @@ function renderRankingEscolas() {
             label: (ctx) => fmtPct(ctx.raw),
             afterLabel: (ctx) => {
               const row = sorted[ctx.dataIndex];
+              const faixa = faixasRows[ctx.dataIndex];
               const qtd = qtdTurmasEscola(row.escola);
-              return qtd > 1 ? `${qtd} turmas · média ponderada` : "Turma única";
+              const turmas = qtd > 1 ? `${qtd} turmas · média ponderada` : "Turma única";
+              return faixa ? [`Faixa: ${faixa.aprendizado}`, turmas] : turmas;
             },
           },
         },
@@ -1727,12 +1799,19 @@ function renderRanking(rows) {
 
   document.getElementById("chartRankingTitle").textContent =
     state.visao === "escolas" ? "Ranking por escola" : "Ranking por turma";
-  document.getElementById("chartRankingSub").textContent = `${state.ano || anoPadrao()}º ano · ${DISCIPLINAS[state.disciplina]} · 1º ao ${sorted.length}º · clique para filtrar`;
+  const corHint =
+    state.disciplina === "geral"
+      ? "cores = média LP + MAT"
+      : "cores = faixa de aprendizado";
+  document.getElementById("chartRankingSub").textContent =
+    `${state.ano || anoPadrao()}º ano · ${DISCIPLINAS[state.disciplina]} · 1º ao ${sorted.length}º · ${corHint} · clique para filtrar`;
 
   const ctx = document.getElementById("chartRanking");
   const labels = labelRows(sorted);
   const medias = sorted.map((r) => mediaRow(r));
   const ranks = competitionRanks(medias);
+  const faixasRows = sorted.map((r) => faixaFromRow(r));
+  renderRankingFaixasLegend("rankingTurmaLegend", faixasRows);
   charts.ranking = new Chart(ctx, {
     type: "bar",
     data: {
@@ -1743,7 +1822,8 @@ function renderRanking(rows) {
           data: medias,
           alunos: sorted.map((r) => metricAvaliados(r)),
           ranks,
-          backgroundColor: sorted.map((r) => faixaFromRow(r).color),
+          // Cor = faixa de aprendizado (proficiência), não o valor da média %
+          backgroundColor: faixasRows.map((f) => f.color),
           borderRadius: 8,
         },
       ],
@@ -1763,7 +1843,15 @@ function renderRanking(rows) {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => fmtPct(ctx.raw) } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => fmtPct(ctx.raw),
+            afterLabel: (ctx) => {
+              const faixa = faixasRows[ctx.dataIndex];
+              return faixa ? `Faixa: ${faixa.aprendizado}` : "";
+            },
+          },
+        },
       },
       onClick: (_, els) => {
         if (!els.length) return;
@@ -1985,6 +2073,7 @@ function renderQuestoesAvaliadosTab() {
 
 /** Cor da barra de questão pelas faixas SAEB (mesmo padrão do donut). */
 function corQuestaoPorFaixa(pct, disciplina = "lp") {
+  if (disciplina === "geral") return faixaFromPct(pct, "geral").color;
   const scale = disciplina === "mat" ? 350 : 325;
   const score = (Number(pct) / 100) * scale;
   return faixaFromProficiencia(score, disciplina).color;
@@ -2002,6 +2091,7 @@ function fmtPctLegenda(pct) {
  * da escala (149→150 vira 45,85%→46,15%).
  * LP (325): ≤149 | <200 | <250 | ≥250
  * MAT (350): ≤174 | ≤224 | ≤274 | >274
+ * Geral: média aritmética dos cortes % de LP e MAT
  */
 function buildQuestoesLegendRanges(disciplina) {
   const cores = {
@@ -2010,32 +2100,8 @@ function buildQuestoesLegendRanges(disciplina) {
     proficiente: COR_APREND.proficiente,
     avancado: COR_APREND.avancado,
   };
-  const scale = disciplina === "mat" ? 350 : 325;
   const round2 = (n) => Math.round(n * 100) / 100;
-  const toPct = (score) => (score / scale) * 100;
-
-  /** Maior % (2 casas) ainda classificada na faixa antes do corte exclusivo. */
-  const maxPctExclusive = (scoreLimite) => {
-    const exact = toPct(scoreLimite);
-    const cand = round2(exact);
-    return (cand / 100) * scale < scoreLimite ? cand : round2(cand - 0.01);
-  };
-
-  /** % (2 casas) do corte inclusivo (≤ score). */
-  const maxPctInclusive = (scoreLimite) => round2(toPct(scoreLimite));
-
-  let fimInsuf;
-  let fimBasico;
-  let fimProf;
-  if (disciplina === "mat") {
-    fimInsuf = maxPctInclusive(174);
-    fimBasico = maxPctInclusive(224);
-    fimProf = maxPctInclusive(274);
-  } else {
-    fimInsuf = maxPctInclusive(149);
-    fimBasico = maxPctExclusive(200);
-    fimProf = maxPctExclusive(250);
-  }
+  const { fimInsuf, fimBasico, fimProf } = saebPctCutoffs(disciplina);
 
   const iniBasico = round2(fimInsuf + 0.01);
   const iniProf = round2(fimBasico + 0.01);
@@ -2063,7 +2129,54 @@ function buildQuestoesLegendRanges(disciplina) {
 const QUESTOES_LEGEND = {
   lp: buildQuestoesLegendRanges("lp"),
   mat: buildQuestoesLegendRanges("mat"),
+  geral: buildQuestoesLegendRanges("geral"),
 };
+
+/** Chave da escala de faixas conforme o filtro de disciplina. */
+function disciplinaFaixaKey() {
+  if (state.disciplina === "mat") return "mat";
+  if (state.disciplina === "geral") return "geral";
+  return "lp";
+}
+
+/**
+ * Preenche a legenda estilo FAIXAS (rótulo · faixa % · contagem).
+ * Escalas: LP, MAT ou Combinada (média dos cortes LP+MAT).
+ */
+function fillFaixasLegend(legendEl, countsByKey) {
+  if (!legendEl) return;
+  const disciplina = disciplinaFaixaKey();
+  const items = QUESTOES_LEGEND[disciplina] || QUESTOES_LEGEND.lp;
+  const ariaDisc =
+    disciplina === "mat" ? "Matemática" : disciplina === "geral" ? "média Português + Matemática" : "Português";
+  legendEl.setAttribute("aria-label", `Faixas de desempenho em ${ariaDisc}`);
+  legendEl.innerHTML = items
+    .map((item) => {
+      const count = countsByKey?.[item.key] ?? 0;
+      return `
+    <li class="questoes-legend-item" style="--faixa-color:${item.color}" title="${item.label}: ${item.range}">
+      <span class="questoes-legend-dot" aria-hidden="true"></span>
+      <span class="questoes-legend-label">${item.label}</span>
+      <span class="questoes-legend-range">${item.range}</span>
+      <b class="questoes-legend-count">${count}</b>
+    </li>`;
+    })
+    .join("");
+}
+
+function countFaixasKeys(faixasRows) {
+  const items = QUESTOES_LEGEND[disciplinaFaixaKey()] || QUESTOES_LEGEND.lp;
+  const counts = Object.fromEntries(items.map((item) => [item.key, 0]));
+  (faixasRows || []).forEach((f) => {
+    const key = f?.key;
+    if (key != null && counts[key] != null) counts[key] += 1;
+  });
+  return counts;
+}
+
+function renderRankingFaixasLegend(legendId, faixasRows) {
+  fillFaixasLegend(document.getElementById(legendId), countFaixasKeys(faixasRows));
+}
 
 function renderQuestoesLegend(data) {
   const layout = document.getElementById("questoesLayout");
@@ -2071,8 +2184,8 @@ function renderQuestoesLegend(data) {
   const legend = document.getElementById("questoesLegend");
   if (!layout || !panel || !legend) return;
 
-  const disciplina = state.disciplina === "mat" ? "mat" : state.disciplina === "lp" ? "lp" : null;
-  const items = disciplina ? QUESTOES_LEGEND[disciplina] : null;
+  const disciplina = disciplinaFaixaKey();
+  const items = QUESTOES_LEGEND[disciplina];
   const show = Boolean(items);
   layout.classList.toggle("has-legend", show);
   panel.hidden = !show;
@@ -2081,25 +2194,20 @@ function renderQuestoesLegend(data) {
     return;
   }
 
-  const scale = disciplina === "mat" ? 350 : 325;
   const counts = Object.fromEntries(items.map((item) => [item.key, 0]));
   (data || []).forEach((d) => {
     if (d.v == null) return;
-    const key = faixaFromProficiencia((Number(d.v) / 100) * scale, disciplina).key;
+    let key;
+    if (disciplina === "geral") {
+      key = faixaFromPct(d.v, "geral").key;
+    } else {
+      const scale = disciplina === "mat" ? 350 : 325;
+      key = faixaFromProficiencia((Number(d.v) / 100) * scale, disciplina).key;
+    }
     if (counts[key] != null) counts[key] += 1;
   });
 
-  legend.innerHTML = items
-    .map(
-      (item) => `
-    <li class="questoes-legend-item" style="--faixa-color:${item.color}" title="${item.label}: ${item.range}">
-      <span class="questoes-legend-dot" aria-hidden="true"></span>
-      <span class="questoes-legend-label">${item.label}</span>
-      <span class="questoes-legend-range">${item.range}</span>
-      <b class="questoes-legend-count">${counts[item.key]}</b>
-    </li>`
-    )
-    .join("");
+  fillFaixasLegend(legend, counts);
 }
 
 function renderQuestoes() {
@@ -2115,11 +2223,11 @@ function renderQuestoes() {
   renderQuestoesLegend(data);
 
   const corQuestao = (d) => {
-    const group = d.group || (state.disciplina === "mat" ? "mat" : state.disciplina === "lp" ? "lp" : null);
-    // LP e MAT: vermelho / laranja / amarelo / verde pelas faixas SAEB
-    if (group === "lp" || state.disciplina === "lp") {
-      return corQuestaoPorFaixa(d.v, "lp");
+    // Português + Matemática: escala única = média dos cortes % LP e MAT
+    if (state.disciplina === "geral") {
+      return corQuestaoPorFaixa(d.v, "geral");
     }
+    const group = d.group || (state.disciplina === "mat" ? "mat" : "lp");
     if (group === "mat" || state.disciplina === "mat") {
       return corQuestaoPorFaixa(d.v, "mat");
     }
@@ -2204,9 +2312,86 @@ function proficienciaSourcePeriodo() {
   return { periodo, bundle, lp, mat };
 }
 
+function profRowKey(row) {
+  return `${row?.escola || ""}|${row?.turma || ""}`;
+}
+
+/**
+ * Português + Matemática: média LP+MAT por turma.
+ * - % acertos = média simples
+ * - índice de proficiência = média das % nas escalas (LP/325 e MAT/350)
+ * - aprendizado = faixas combinadas (mesma legenda do ranking/questões)
+ * - nível = média arredondada dos níveis LP e MAT
+ * - proficiencia (barra) = índice remapeado à escala 325 para manter a ordem visual
+ */
+function mergeProficienciaGeral(lpRows, matRows) {
+  const map = new Map();
+  (lpRows || []).forEach((row) => {
+    map.set(profRowKey(row), { lp: row, mat: null });
+  });
+  (matRows || []).forEach((row) => {
+    const key = profRowKey(row);
+    const cur = map.get(key) || { lp: null, mat: null };
+    cur.mat = row;
+    if (!cur.lp) {
+      cur.lp = null;
+    }
+    map.set(key, cur);
+  });
+
+  return [...map.values()]
+    .map(({ lp, mat }) => {
+      const base = lp || mat;
+      if (!base) return null;
+
+      const lpPct = lp?.proficiencia != null ? (Number(lp.proficiencia) / 325) * 100 : null;
+      const matPct = mat?.proficiencia != null ? (Number(mat.proficiencia) / 350) * 100 : null;
+      let pctProf = null;
+      if (lpPct != null && matPct != null) pctProf = (lpPct + matPct) / 2;
+      else pctProf = lpPct ?? matPct;
+      if (pctProf == null) return null;
+
+      const faixa = faixaFromPct(pctProf, "geral");
+      const pctLp = lp?.pctAcertos != null ? Number(lp.pctAcertos) : null;
+      const pctMat = mat?.pctAcertos != null ? Number(mat.pctAcertos) : null;
+      let pctAcertos = null;
+      if (pctLp != null && pctMat != null) pctAcertos = roundHalfUp((pctLp + pctMat) / 2);
+      else pctAcertos = pctLp ?? pctMat;
+
+      const nLp = lp?.nivel != null ? Number(lp.nivel) : null;
+      const nMat = mat?.nivel != null ? Number(mat.nivel) : null;
+      let nivel = null;
+      if (nLp != null && nMat != null) nivel = roundHalfUp((nLp + nMat) / 2, 0);
+      else nivel = nLp ?? nMat;
+
+      return {
+        disciplina: "geral",
+        escola: base.escola,
+        turma: base.turma,
+        chave: base.chave || `${base.escola} - ${base.turma}`,
+        previstos: roundHalfUp(((lp?.previstos || 0) + (mat?.previstos || 0)) / (lp && mat ? 2 : 1), 0),
+        avaliados: roundHalfUp(((lp?.avaliados || 0) + (mat?.avaliados || 0)) / (lp && mat ? 2 : 1), 0),
+        pctAcertos,
+        aprendizado: faixa.aprendizado,
+        // Barra = índice médio % (LP/325 e MAT/350) — eixo 0–100 no mapa geral
+        proficiencia: roundHalfUp(pctProf, 2),
+        indicePct: roundHalfUp(pctProf, 2),
+        nivel,
+        nivelLabel: nivel != null ? `NÍVEL ${nivel}` : "",
+        origem: { lp, mat },
+      };
+    })
+    .filter(Boolean);
+}
+
 function proficienciaRows() {
   const { lp, mat } = proficienciaSourcePeriodo();
-  const rows = state.disciplina === "mat" ? [...mat] : [...lp];
+  const rows =
+    state.disciplina === "mat"
+      ? [...mat]
+      : state.disciplina === "geral"
+        ? mergeProficienciaGeral(lp, mat)
+        : [...lp];
   const q = state.search.trim().toLowerCase();
   return rows.filter((row) => {
     if (state.escola) {
@@ -2225,8 +2410,8 @@ function proficienciaRows() {
 }
 
 function profScaleAtiva() {
-  // Usa o filtro de disciplina direto (mat) — "geral" e "lp" usam escala de Português.
-  return state.disciplina === "mat" ? PROF_SCALE_MAT : PROF_SCALE_LP;
+  if (state.disciplina === "mat") return PROF_SCALE_MAT;
+  return PROF_SCALE_LP;
 }
 
 /** Arredonda como o Excel (0,5 para cima) — exibe a proficiência igual à planilha. */
@@ -2250,6 +2435,34 @@ function renderProfScaleLegend() {
   const el = document.getElementById("profScaleLegend");
   if (!el) return;
   const ano = state.ano || anoPadrao();
+
+  // Português + Matemática: legenda das faixas combinadas (%), sem misturar escalas 325/350.
+  if (state.disciplina === "geral") {
+    const items = QUESTOES_LEGEND.geral || buildQuestoesLegendRanges("geral");
+    el.hidden = false;
+    el.dataset.disciplina = "geral";
+    el.setAttribute("aria-label", `Escala de proficiência — ${ano}º ano · média LP + MAT`);
+    el.innerHTML =
+      `<div class="prof-scale-caption"><strong>${ano}º ano · Português + Matemática</strong>` +
+      `<span>média das % nas escalas SAEB · nível = média LP+MAT</span></div>` +
+      `<div class="prof-scale-bands">` +
+      items
+        .map((item) => {
+          const color = item.color;
+          return (
+            `<div class="prof-scale-group" data-band="${item.key}">` +
+            `<span class="prof-scale-title">${item.label}</span>` +
+            `<ul class="prof-scale-levels">` +
+            `<li><span class="niveis-pill" style="--nivel-color:${color}">${item.label}</span>` +
+            `<span>${item.range}</span></li>` +
+            `</ul></div>`
+          );
+        })
+        .join("") +
+      `</div>`;
+    return;
+  }
+
   const isMat = state.disciplina === "mat";
   const disc = isMat ? "Matemática" : "Língua Portuguesa";
   const escala = isMat ? "escala 350 · níveis 0–10" : "escala 325 · níveis 0–9";
@@ -2297,7 +2510,8 @@ const proficienciaBarLabelsPlugin = {
       const start = Math.min(bar.x, bar.base);
       const end = Math.max(bar.x, bar.base);
       const width = end - start;
-      const profText = fmtProfScore(value);
+      const isGeral = state.disciplina === "geral";
+      const profText = isGeral ? fmtPct(value) : fmtProfScore(value);
       const pctText = pct != null ? fmtPct(pct) : "";
 
       ctx.textBaseline = "middle";
@@ -2310,7 +2524,7 @@ const proficienciaBarLabelsPlugin = {
         ctx.fillText(nivel, start + 10, bar.y);
       }
 
-      // Pontuação à direita dentro da barra
+      // Pontuação / índice à direita dentro da barra
       if (width > 48) {
         ctx.font = "700 12px 'DM Sans', system-ui, sans-serif";
         ctx.textAlign = "right";
@@ -2330,14 +2544,14 @@ const proficienciaBarLabelsPlugin = {
 
 function aprendizadoFromNivel(nivel) {
   const n = Number(nivel);
-  if (disciplinaProficiencia() === "mat") {
+  if (state.disciplina === "mat") {
     // MAT: ≤174 → N0–2; 175–224 → N3–4; 225–274 → N5–6; ≥275 → N7+
     if (n <= 2) return APRENDIZADO[0];
     if (n <= 4) return APRENDIZADO[1];
     if (n <= 6) return APRENDIZADO[2];
     return APRENDIZADO[3];
   }
-  // LP: ≤149 → N0–1; 150–199 → N2–3; 200–249 → N4–5; ≥250 → N6+
+  // LP e geral (nível médio LP+MAT): ≤149 → N0–1; 150–199 → N2–3; 200–249 → N4–5; ≥250 → N6+
   if (n <= 1) return APRENDIZADO[0];
   if (n <= 3) return APRENDIZADO[1];
   if (n <= 5) return APRENDIZADO[2];
@@ -2354,7 +2568,7 @@ function renderProfNiveis(rows) {
       "<tr>" +
       '<td class="niveis-td-nivel"><span class="niveis-pill" style="--nivel-color:' + apr.color + '">NÍVEL ' + n.nivel + "</span></td>" +
       '<td class="niveis-td-turmas"><strong>' + count + "</strong></td>" +
-      '<td class="niveis-td-aprend"><span class="niveis-dot" style="background:' + apr.color + '"></span>' + apr.label + "</td>" +
+      '<td class="niveis-td-aprend"><span class="niveis-aprend-wrap"><span class="niveis-dot" style="background:' + apr.color + '"></span>' + apr.label + "</span></td>" +
       "</tr>"
     );
   }).join("");
@@ -2432,10 +2646,13 @@ function renderProficienciaBars(rows) {
     if (canvas) canvas.hidden = true;
     if (empty) {
       empty.hidden = false;
+      const periodoLabel = PERIODOS[state.periodo] || state.periodo;
       empty.textContent =
         state.disciplina === "mat"
-          ? "Sem dados de proficiência de Matemática para " + (PERIODOS[state.periodo] || state.periodo) + " com o filtro atual."
-          : "Sem dados de proficiência para " + (PERIODOS[state.periodo] || state.periodo) + " com o filtro atual.";
+          ? `Sem dados de proficiência de Matemática para ${periodoLabel} com o filtro atual.`
+          : state.disciplina === "geral"
+            ? `Sem dados de proficiência (média LP + MAT) para ${periodoLabel} com o filtro atual.`
+            : `Sem dados de proficiência para ${periodoLabel} com o filtro atual.`;
     }
     return;
   }
@@ -2482,8 +2699,12 @@ function renderProficienciaBars(rows) {
       scales: {
         x: {
           beginAtZero: true,
-          suggestedMax: Math.ceil(Math.max(...sorted.map((r) => r.proficiencia || 0)) / 20) * 20 + 20,
-          ticks: { color: PROF_INK, font: { size: 11, weight: "600" } },
+          ...(state.disciplina === "geral"
+            ? { max: 100, ticks: { color: PROF_INK, font: { size: 11, weight: "600" }, callback: (v) => `${v}%` } }
+            : {
+                suggestedMax: Math.ceil(Math.max(...sorted.map((r) => r.proficiencia || 0)) / 20) * 20 + 20,
+                ticks: { color: PROF_INK, font: { size: 11, weight: "600" } },
+              }),
           grid: { color: "rgba(128,128,140,.12)" },
         },
         y: {
@@ -2499,6 +2720,9 @@ function renderProficienciaBars(rows) {
               const row = sorted[ctx.dataIndex];
               const aprend = aprendizadoMeta(row.aprendizado).label;
               const pct = row.pctAcertos != null ? " · " + fmtPct(row.pctAcertos) + " acertos" : "";
+              if (state.disciplina === "geral") {
+                return `índice ${fmtPct(ctx.raw)} · ${aprend}${pct}`;
+              }
               return fmtProfScore(ctx.raw) + " pts · " + aprend + pct;
             },
           },
@@ -2535,16 +2759,25 @@ function renderProficiencia() {
   const barsSub = document.getElementById("chartProfBarsSub");
   const kicker = document.querySelector(".prof-kicker");
   if (title) title.textContent = "Mapa de Proficiência";
+
+  const disc =
+    state.disciplina === "mat"
+      ? "Matemática"
+      : state.disciplina === "geral"
+        ? "Português + Matemática"
+        : "Língua Portuguesa";
+  const escala =
+    state.disciplina === "mat"
+      ? "escala 350 · níveis 0–10"
+      : state.disciplina === "geral"
+        ? "média LP + MAT · faixas combinadas"
+        : "escala 325 · níveis 0–9";
+
   if (kicker) {
     kicker.textContent =
-      `${state.ano || anoPadrao()}º ano · ` +
-      (PERIODOS[source.periodo] || source.periodo) +
-      " · " +
-      (state.disciplina === "mat" ? "Matemática" : "Língua Portuguesa");
+      `${state.ano || anoPadrao()}º ano · ` + (PERIODOS[source.periodo] || source.periodo) + " · " + disc;
   }
   if (sub) {
-    const disc = state.disciplina === "mat" ? "Matemática" : "Língua Portuguesa";
-    const escala = state.disciplina === "mat" ? "escala 350 · níveis 0–10" : "escala 325 · níveis 0–9";
     sub.textContent =
       `${state.ano || anoPadrao()}º ano · ` +
       (PERIODOS[source.periodo] || source.periodo) +
@@ -2562,7 +2795,9 @@ function renderProficiencia() {
     barsSub.textContent =
       state.disciplina === "mat"
         ? "Matemática · pontuação · nível · % acertos · clique para filtrar"
-        : "Língua Portuguesa · pontuação · nível · % acertos · clique para filtrar";
+        : state.disciplina === "geral"
+          ? "Média LP + MAT · índice · nível médio · % acertos · clique para filtrar"
+          : "Língua Portuguesa · pontuação · nível · % acertos · clique para filtrar";
   }
   // Atualiza a legenda SAEB sempre que o filtro de disciplina/ano muda.
   renderProfScaleLegend();
@@ -2629,6 +2864,11 @@ function renderStatusRow(rows) {
   ).join("");
 }
 
+function syncTableDisciplineCols() {
+  const table = document.getElementById("rankingTable");
+  if (table) table.dataset.disciplina = state.disciplina || "geral";
+}
+
 function renderTable(rows) {
   const sorted = sortedTableRows(rows);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
@@ -2640,12 +2880,13 @@ function renderTable(rows) {
   if (scope) scope.textContent = ` · ${DISCIPLINAS[state.disciplina]} · ${state.ano || anoPadrao()}º ano`;
   document.getElementById("pageInfo").textContent = `${state.page} de ${totalPages}`;
 
-  document.querySelectorAll("th[data-sort]").forEach((th) => {
+  syncTableDisciplineCols();
+  document.querySelectorAll("#rankingTable th[data-sort]").forEach((th) => {
     th.classList.toggle("col-active", false);
   });
   const activeSort =
     state.disciplina === "lp" ? "mediaLp" : state.disciplina === "mat" ? "mediaMat" : "mediaGeral";
-  document.querySelector(`th[data-sort="${activeSort}"]`)?.classList.add("col-active");
+  document.querySelector(`#rankingTable th[data-sort="${activeSort}"]`)?.classList.add("col-active");
 
   document.getElementById("tableBody").innerHTML = slice
     .map((r) => {
@@ -2662,9 +2903,9 @@ function renderTable(rows) {
         <td class="num">${fmt(metrics.previstos)}</td>
         <td class="num">${fmt(metrics.avaliados)}</td>
         <td class="num">${fmtPct(participacao)}</td>
-        <td class="num ${state.disciplina === "lp" ? "col-active" : ""}">${fmtPct(r.mediaLp)}</td>
-        <td class="num ${state.disciplina === "mat" ? "col-active" : ""}">${fmtPct(r.mediaMat)}</td>
-        <td class="num ${state.disciplina === "geral" ? "col-active" : ""}">${fmtPct(r.mediaGeral)}</td>
+        <td class="num col-disc-lp ${state.disciplina === "lp" ? "col-active" : ""}">${fmtPct(r.mediaLp)}</td>
+        <td class="num col-disc-mat ${state.disciplina === "mat" ? "col-active" : ""}">${fmtPct(r.mediaMat)}</td>
+        <td class="num col-disc-geral ${state.disciplina === "geral" ? "col-active" : ""}">${fmtPct(r.mediaGeral)}</td>
       </tr>`;
     })
     .join("");
@@ -2673,24 +2914,29 @@ function renderTable(rows) {
 }
 
 function exportCsv(rows) {
-  const header = ["Ranking", "Escola", "Turma", "Previstos", "Avaliados", "Participacao", "Portugues", "Matematica", "MediaGeral"];
-  const lines = [header.join(";")];
+  const base = ["Ranking", "Escola", "Turma", "Previstos", "Avaliados", "Participacao"];
+  const mediaCols =
+    state.disciplina === "lp"
+      ? ["Portugues"]
+      : state.disciplina === "mat"
+        ? ["Matematica"]
+        : ["Portugues", "Matematica", "MediaGeral"];
+  const lines = [[...base, ...mediaCols].join(";")];
   sortedTableRows(rows).forEach((r) => {
     const metrics = rowMetrics(r);
     const participacao = metrics.previstos ? (metrics.avaliados / metrics.previstos) * 100 : 0;
-    lines.push(
-      [
-        rankingField(r),
-        r.escola,
-        state.visao === "escolas" ? "" : r.turma,
-        metrics.previstos,
-        metrics.avaliados,
-        participacao.toFixed(2),
-        r.mediaLp.toFixed(2),
-        r.mediaMat.toFixed(2),
-        r.mediaGeral.toFixed(2),
-      ].join(";")
-    );
+    const vals = [
+      rankingField(r),
+      r.escola,
+      state.visao === "escolas" ? "" : r.turma,
+      metrics.previstos,
+      metrics.avaliados,
+      participacao.toFixed(2),
+    ];
+    if (state.disciplina === "lp") vals.push(r.mediaLp.toFixed(2));
+    else if (state.disciplina === "mat") vals.push(r.mediaMat.toFixed(2));
+    else vals.push(r.mediaLp.toFixed(2), r.mediaMat.toFixed(2), r.mediaGeral.toFixed(2));
+    lines.push(vals.join(";"));
   });
   const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
@@ -2923,8 +3169,11 @@ function bindEvents() {
 
   document.getElementById("btnPrintChart")?.addEventListener("click", () => {
     openPrintPreview().catch((err) => {
-      console.error(err);
-      alert("Não foi possível gerar a pré-visualização do gráfico.");
+      console.error("Pré-visualização:", err);
+      alert(
+        "Não foi possível gerar a pré-visualização do gráfico." +
+          (err?.message ? `\n\nDetalhe: ${err.message}` : "")
+      );
     });
   });
   document.getElementById("btnDownloadJpg")?.addEventListener("click", () => {
@@ -3132,23 +3381,32 @@ function sanitizeCloneForHtml2Canvas(clonedDoc) {
         if (!rules) return;
         for (let i = rules.length - 1; i >= 0; i -= 1) {
           const text = rules[i]?.cssText || "";
-          if (/color-mix\s*\(/i.test(text)) sheet.deleteRule(i);
+          if (/color-mix\s*\(/i.test(text) || /lab\s*\(/i.test(text) || /oklch\s*\(/i.test(text)) {
+            sheet.deleteRule(i);
+          }
         }
       } catch {
-        /* stylesheet cross-origin */
+        /* stylesheet cross-origin / file:// */
       }
     });
   } catch {
     /* ignore */
   }
 
+  const isDark = clonedDoc.documentElement.getAttribute("data-theme") === "dark";
+  const panelBg = isDark ? "#2a2a30" : "#f0f0f2";
+  const panelBorder = isDark ? "#3a3a42" : "#d8d8de";
+  const itemBg = isDark ? "#1c1c22" : "#ffffff";
+  const softBg = isDark ? "#24242a" : "#f4f4f6";
+
   const fixVar = (el, varName, alphaBg = 0.28, alphaBorder = 0.55) => {
     const color =
       el.style.getPropertyValue(varName).trim() ||
       getComputedStyle(el).getPropertyValue(varName).trim();
     if (!color || color.startsWith("color")) return;
-    el.style.background = hexToRgba(color, alphaBg);
-    el.style.borderColor = hexToRgba(color, alphaBorder);
+    el.style.setProperty("background", hexToRgba(color, alphaBg), "important");
+    el.style.setProperty("border-color", hexToRgba(color, alphaBorder), "important");
+    el.style.setProperty("box-shadow", "none", "important");
   };
 
   clonedDoc.querySelectorAll(".niveis-pill").forEach((el) => fixVar(el, "--nivel-color", 0.28, 0.55));
@@ -3163,14 +3421,61 @@ function sanitizeCloneForHtml2Canvas(clonedDoc) {
     fixVar(el, "--tag", 0.18, 0.4)
   );
 
+  // Painéis/legendas com color-mix no CSS externo (file:// não deixa apagar a regra)
+  clonedDoc.querySelectorAll(".questoes-legend-panel, .ranking-faixas-legend").forEach((el) => {
+    el.style.setProperty("background", panelBg, "important");
+    el.style.setProperty("border-color", panelBorder, "important");
+  });
+  clonedDoc.querySelectorAll(".questoes-legend-item").forEach((el) => {
+    const color = el.style.getPropertyValue("--faixa-color").trim();
+    el.style.setProperty("background", itemBg, "important");
+    if (color) el.style.setProperty("border-color", color, "important");
+    el.style.setProperty("box-shadow", "none", "important");
+  });
+  clonedDoc.querySelectorAll(".questoes-legend-dot").forEach((el) => {
+    el.style.setProperty("box-shadow", "none", "important");
+  });
+  clonedDoc.querySelectorAll(".chart-tab, .prof-scale-legend").forEach((el) => {
+    el.style.setProperty("background", softBg, "important");
+    el.style.setProperty("border-color", panelBorder, "important");
+  });
+
+  // Última passagem: qualquer computed style ainda com color-mix/lab/oklch
+  clonedDoc.body.querySelectorAll("*").forEach((el) => {
+    try {
+      const cs = getComputedStyle(el);
+      ["backgroundColor", "borderColor", "color", "boxShadow"].forEach((prop) => {
+        const val = String(cs[prop] || "");
+        if (!/color-mix|lab\(|oklch\(|color\(/i.test(val)) return;
+        if (prop === "backgroundColor") el.style.setProperty("background", itemBg, "important");
+        else if (prop === "borderColor") el.style.setProperty("border-color", panelBorder, "important");
+        else if (prop === "boxShadow") el.style.setProperty("box-shadow", "none", "important");
+        else el.style.setProperty("color", isDark ? "#f2f2f4" : "#141418", "important");
+      });
+    } catch {
+      /* ignore elemento problemático no clone */
+    }
+  });
+
   const safe = clonedDoc.createElement("style");
   safe.setAttribute("data-print-safe", "1");
   safe.textContent = `
     .niveis-pill, .status-card, .questoes-legend-item, .prof-kpi, .tag-ranking,
-    .chart-tab, .prof-scale-legend, .prof-nivel, .legend li {
+    .chart-tab, .prof-scale-legend, .prof-nivel, .legend li,
+    .questoes-legend-panel, .ranking-faixas-legend {
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
     }
+    .questoes-legend-panel, .ranking-faixas-legend {
+      background: ${panelBg} !important;
+      border-color: ${panelBorder} !important;
+    }
+    .questoes-legend-item {
+      background: ${itemBg} !important;
+      box-shadow: none !important;
+    }
+    .questoes-legend-dot { box-shadow: none !important; }
+    .niveis-table tbody tr:hover td { background: transparent !important; }
     .prof-scale-group[data-band="insuficiente"] .niveis-pill { background: rgba(255,59,48,.28) !important; border-color: rgba(255,59,48,.55) !important; }
     .prof-scale-group[data-band="basico"] .niveis-pill { background: rgba(255,159,10,.28) !important; border-color: rgba(255,159,10,.55) !important; }
     .prof-scale-group[data-band="proficiente"] .niveis-pill { background: rgba(61,123,255,.28) !important; border-color: rgba(61,123,255,.55) !important; }
@@ -3180,15 +3485,19 @@ function sanitizeCloneForHtml2Canvas(clonedDoc) {
 }
 
 async function capturePrintCanvas(target) {
-  const bg = getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#ffffff";
+  const rawBg = getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#ffffff";
+  const bg = /color-mix|lab\(|oklch\(|color\(/i.test(rawBg) ? "#ffffff" : rawBg || "#ffffff";
   return withFullChartCapture(target, async (el) => {
-    const width = Math.ceil(Math.max(el.scrollWidth, el.offsetWidth));
-    const height = Math.ceil(Math.max(el.scrollHeight, el.offsetHeight));
+    const width = Math.max(1, Math.ceil(Math.max(el.scrollWidth, el.offsetWidth, 320)));
+    const height = Math.max(1, Math.ceil(Math.max(el.scrollHeight, el.offsetHeight, 240)));
+    // Evita estourar o limite de pixels do canvas do navegador
+    const maxSide = Math.max(width, height);
+    const scale = Math.max(0.6, Math.min(2, 3600 / maxSide));
     const opts = {
-      scale: Math.min(2, 4096 / Math.max(width, height, 1)),
+      scale,
       useCORS: true,
-      allowTaint: false,
-      backgroundColor: bg.startsWith("color") ? "#ffffff" : bg || "#ffffff",
+      allowTaint: true,
+      backgroundColor: bg,
       logging: false,
       width,
       height,
@@ -3203,14 +3512,17 @@ async function capturePrintCanvas(target) {
     try {
       return await html2canvas(el, opts);
     } catch (err) {
-      // Retry sem limites explícitos (alguns layouts quebram width/height fixos).
+      console.warn("html2canvas falhou na 1ª tentativa:", err);
+      // Retry mais conservador (sem width/height fixos + escala menor)
       return await html2canvas(el, {
         ...opts,
         width: undefined,
         height: undefined,
         windowWidth: undefined,
         windowHeight: undefined,
-        scale: 1.5,
+        scale: 1,
+        allowTaint: true,
+        foreignObjectRendering: false,
       });
     }
   });

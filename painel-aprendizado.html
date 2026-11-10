@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=129" />
+  <link rel="stylesheet" href="styles.css?v=133" />
   <script>
     (function () {
       var theme = localStorage.getItem("adse-theme");
@@ -209,6 +209,10 @@
                     <p id="chartRankingSub">Média geral por turma · clique para filtrar</p>
                   </div>
                 </div>
+                <aside class="questoes-legend-panel ranking-faixas-legend" id="rankingTurmaLegendPanel">
+                  <span class="questoes-legend-caption">Faixas</span>
+                  <ul class="questoes-legend" id="rankingTurmaLegend" aria-label="Faixas de desempenho"></ul>
+                </aside>
                 <div class="chart-wrap escolas" id="chartRankingWrap">
                   <canvas id="chartRanking"></canvas>
                 </div>
@@ -220,8 +224,11 @@
                     <h2 id="chartRankingEscolasTitle">Ranking por escola</h2>
                     <p id="chartRankingEscolasSub">Média ponderada · turmas agrupadas · clique para filtrar</p>
                   </div>
-                  <ul class="legend compact" id="rankingEscolasLegend"></ul>
                 </div>
+                <aside class="questoes-legend-panel ranking-faixas-legend" id="rankingEscolasLegendPanel">
+                  <span class="questoes-legend-caption">Faixas</span>
+                  <ul class="questoes-legend" id="rankingEscolasLegend" aria-label="Faixas de desempenho"></ul>
+                </aside>
                 <div class="chart-wrap escolas comparativo" id="chartRankingEscolasWrap">
                   <canvas id="chartRankingEscolas"></canvas>
                 </div>
@@ -245,7 +252,7 @@
             <div class="questoes-layout" id="questoesLayout">
               <aside class="questoes-legend-panel" id="questoesLegendPanel" hidden>
                 <span class="questoes-legend-caption">Faixas</span>
-                <ul class="questoes-legend" id="questoesLegend" aria-label="Faixas de desempenho em Português"></ul>
+                <ul class="questoes-legend" id="questoesLegend" aria-label="Faixas de desempenho"></ul>
               </aside>
               <div class="chart-wrap tall">
                 <canvas id="chartQuestoes"></canvas>
@@ -311,7 +318,7 @@
             </div>
           </div>
           <div class="table-scroll">
-            <table>
+            <table id="rankingTable">
               <thead>
                 <tr>
                   <th data-sort="ranking">Ranking</th>
@@ -320,9 +327,9 @@
                   <th class="num" data-sort="previstos">Previstos</th>
                   <th class="num" data-sort="avaliados">Avaliados</th>
                   <th class="num" data-sort="participacao">Participação %</th>
-                  <th class="num" data-sort="mediaLp">Português %</th>
-                  <th class="num" data-sort="mediaMat">Matemática %</th>
-                  <th class="num" data-sort="mediaGeral">Média geral %</th>
+                  <th class="num col-disc-lp" data-sort="mediaLp">Português %</th>
+                  <th class="num col-disc-mat" data-sort="mediaMat">Matemática %</th>
+                  <th class="num col-disc-geral" data-sort="mediaGeral">Média geral %</th>
                 </tr>
               </thead>
               <tbody id="tableBody"></tbody>
@@ -369,6 +376,6 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="dados.js?v=14"></script>
-  <script src="app-aprendizado.js?v=36"></script>
+  <script src="app-aprendizado.js?v=44"></script>
 </body>
 </html>

@@ -1025,6 +1025,14 @@ th.col-active { color: rgb(0, 0, 0); }
 td.col-active { font-weight: 700; color: rgb(0, 0, 0); }
 html[data-theme="dark"] th.col-active,
 html[data-theme="dark"] td.col-active { color: #ffffff; }
+
+/* Tabela: mostra só colunas da disciplina filtrada */
+#rankingTable[data-disciplina="lp"] .col-disc-mat,
+#rankingTable[data-disciplina="lp"] .col-disc-geral,
+#rankingTable[data-disciplina="mat"] .col-disc-lp,
+#rankingTable[data-disciplina="mat"] .col-disc-geral {
+  display: none;
+}
 th.num,
 td.num {
   text-align: center !important;
@@ -1223,6 +1231,10 @@ html[data-theme="light"] .tag-ranking {
   border-radius: 12px;
   background: color-mix(in srgb, var(--soft) 70%, transparent);
   border: 1px solid var(--border);
+}
+.ranking-faixas-legend {
+  margin: 0 0 10px;
+  justify-content: center;
 }
 .questoes-legend-caption {
   font-size: 10px;
@@ -1455,11 +1467,15 @@ html[data-theme="dark"] .chart-tab-value {
   letter-spacing: -0.02em;
 }
 .niveis-td-aprend {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-weight: 600;
   white-space: nowrap;
+  vertical-align: middle;
+}
+.niveis-aprend-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  vertical-align: middle;
 }
 .niveis-pill {
   display: inline-flex;
